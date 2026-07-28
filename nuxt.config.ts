@@ -22,7 +22,20 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   vite: {
     optimizeDeps: {
-      include: ['@capacitor/core', '@capacitor/geolocation', 'zego-express-engine-webrtc'],
+      include: ['@capacitor/core', '@capacitor/geolocation'],
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/zego-express-engine-webrtc')) return 'vendor-zego-engine'
+            if (id.includes('node_modules/three')) return 'vendor-three'
+            if (id.includes('node_modules/leaflet')) return 'vendor-map'
+            if (id.includes('node_modules/@capacitor')) return 'vendor-capacitor'
+            return undefined
+          },
+        },
+      },
     },
   },
   runtimeConfig: {
