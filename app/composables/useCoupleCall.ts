@@ -3,6 +3,7 @@ type CallMode = 'audio' | 'video'
 
 import { notifySystem, requestSystemAlerts } from './useSystemAlerts'
 import { hideNativeCallOverlay, showNativeCallOverlay, startNativeCallService, startNativeIncomingAlert, stopNativeCallService, stopNativeIncomingAlert } from './useAndroidCallControls'
+import { createUuid } from '~/utils/browserUuid'
 
 const callStatus = ref<CallStatus>('idle')
 const callError = ref('')
@@ -149,7 +150,7 @@ export function useCoupleCall() {
     if (callStatus.value !== 'idle') return
     callError.value = ''
     try {
-      void requestSystemAlerts(); await ensureChannel(); activeCallId = crypto.randomUUID(); callStatus.value = 'calling'; void startNativeCallService(mode); void showNativeCallOverlay(mode === 'video' ? '视频通话拨号中' : '语音通话拨号中')
+      void requestSystemAlerts(); await ensureChannel(); activeCallId = createUuid(); callStatus.value = 'calling'; void startNativeCallService(mode); void showNativeCallOverlay(mode === 'video' ? '视频通话拨号中' : '语音通话拨号中')
       await createPeer(mode)
       const description = await connection!.createOffer(); await connection!.setLocalDescription(description)
       const sendOffer = () => broadcast('offer', { callMode: mode, callId: activeCallId, description: connection!.localDescription })

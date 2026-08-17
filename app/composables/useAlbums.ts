@@ -2,6 +2,7 @@ export type Album = { id: string; name: string; description: string; coverUrl: s
 export type GalleryPhoto = { id: string; path: string; thumbPath?: string; mediumPath?: string; originalPath?: string; videoPosterPath?: string; videoPosterUrl?: string; url: string; originalUrl?: string; loadState?: 'pending'|'ready'|'error'; takenDate: string; albumId: string; albumName: string; source: 'album' | 'memory'; caption: string; mediaType:'image'|'video'; uploadedBy:string; uploaderName:string; legacy:boolean }
 import { createMediaSignedUrl, createMediaSignedUrls, createVideoPoster, prepareImageVariants, prepareVideoForUpload, uploadMediaResumable } from './useMediaUrls'
 import { runQueuedUpload } from './useMediaUploadQueue'
+import { createUuid } from '~/utils/browserUuid'
 
 const albums = ref<Album[]>([])
 const albumPhotos = ref<GalleryPhoto[]>([])
@@ -186,7 +187,7 @@ export function useAlbums() {
   const allPhotos = computed(() => [...albumPhotos.value, ...memoryPhotos.value].sort((a, b) => b.takenDate.localeCompare(a.takenDate)))
 
   async function createAlbum(name: string, description: string) {
-    if (!$supabase || demoMode.value) { albums.value.unshift({ id: crypto.randomUUID(), name, description, coverUrl: '', createdAt: new Date().toISOString(), photoCount: 0 }); demoSave(); return }
+    if (!$supabase || demoMode.value) { albums.value.unshift({ id: createUuid(), name, description, coverUrl: '', createdAt: new Date().toISOString(), photoCount: 0 }); demoSave(); return }
     const { error } = await $supabase.from('albums').insert({ couple_id: profile.value!.coupleId, created_by: profile.value!.id, name, description: description || null })
     if (error) throw error; await loadAlbums(true)
   }
@@ -199,12 +200,12 @@ export function useAlbums() {
       if (!$supabase || demoMode.value) {
         const file = sourceFile
         const url = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result as string); reader.onerror = reject; reader.readAsDataURL(file) })
-        albumPhotos.value.unshift({ id: crypto.randomUUID(), path: '', url, takenDate, albumId, albumName: album.name, source: 'album', caption: '',mediaType:file.type.startsWith('video/')?'video':'image',uploadedBy:profile.value?.id||'demo-user',uploaderName:profile.value?.displayName||'我',legacy:false }); continue
+        albumPhotos.value.unshift({ id: createUuid(), path: '', url, takenDate, albumId, albumName: album.name, source: 'album', caption: '',mediaType:file.type.startsWith('video/')?'video':'image',uploadedBy:profile.value?.id||'demo-user',uploaderName:profile.value?.displayName||'我',legacy:false }); continue
       }
       const result = await runQueuedUpload(sourceFile, `相册 · ${sourceFile.name}`, async setProgress => {
         if (sourceFile.type.startsWith('video/')) {
           const file = await prepareVideoForUpload(sourceFile); const poster = await createVideoPoster(file); setProgress(35)
-          const mediaId = crypto.randomUUID(); const ext = file.name.split('.').pop()?.toLowerCase() || 'webm'; const path = `${profile.value!.coupleId}/album-media/${albumId}/${mediaId}.${ext}`; const posterPath = poster ? `${profile.value!.coupleId}/album-media/${albumId}/${mediaId}/poster.jpg` : ''
+          const mediaId = createUuid(); const ext = file.name.split('.').pop()?.toLowerCase() || 'webm'; const path = `${profile.value!.coupleId}/album-media/${albumId}/${mediaId}.${ext}`; const posterPath = poster ? `${profile.value!.coupleId}/album-media/${albumId}/${mediaId}/poster.jpg` : ''
           const { error: uploadError } = await uploadMediaResumable($supabase, 'album-media', path, file, value => setProgress(35 + Math.round(value * .3))); uploadedPaths.push(path); if (uploadError) throw uploadError
           if (poster && posterPath) { const { error: posterError } = await uploadMediaResumable($supabase, 'album-media', posterPath, poster, value => setProgress(65 + Math.round(value * .08))); uploadedPaths.push(posterPath); if (posterError) throw posterError }
           setProgress(78)
@@ -213,7 +214,7 @@ export function useAlbums() {
           return path
         }
         const variants = await prepareImageVariants(sourceFile); setProgress(25)
-        const base = `${profile.value!.coupleId}/album-media/${albumId}/${crypto.randomUUID()}`
+        const base = `${profile.value!.coupleId}/album-media/${albumId}/${createUuid()}`
         const paths = { thumb: `${base}/thumb.jpg`, medium: `${base}/medium.jpg`, original: `${base}/original.jpg` }
         uploadedPaths.push(...Object.values(paths))
         const uploadResults = await Promise.all([

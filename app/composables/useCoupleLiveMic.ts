@@ -1,5 +1,6 @@
 import { notifySystem } from './useSystemAlerts'
 import { hideNativeCallOverlay, showNativeCallOverlay, startNativeCallService, stopNativeCallService } from './useAndroidCallControls'
+import { createUuid } from '~/utils/browserUuid'
 
 export type LiveMicStatus = 'idle' | 'broadcasting' | 'listening'
 const liveStatus = ref<LiveMicStatus>('idle')
@@ -110,7 +111,7 @@ export function useCoupleLiveMic() {
     if (liveStatus.value !== 'idle' || startInFlight) return
     if (demoMode.value || !profile.value?.coupleId) { liveError.value = '开麦需要登录并绑定情侣空间'; return }
     liveError.value = ''; ignoreCurrentLive = false; startInFlight = true
-    try { await ensureLiveChannel(); sessionId = crypto.randomUUID(); liveStatus.value = 'broadcasting'; void startNativeCallService('audio'); void showNativeCallOverlay('正在开麦，对方可直接收听'); await broadcast('live-start', { sessionId, userName: profile.value?.displayName || 'TA' }); void notifySystem('已开始开麦', '对方上线后可直接收听', 2102) }
+    try { await ensureLiveChannel(); sessionId = createUuid(); liveStatus.value = 'broadcasting'; void startNativeCallService('audio'); void showNativeCallOverlay('正在开麦，对方可直接收听'); await broadcast('live-start', { sessionId, userName: profile.value?.displayName || 'TA' }); void notifySystem('已开始开麦', '对方上线后可直接收听', 2102) }
     catch (error: any) { liveError.value = readableError(error, '无法开始开麦'); cleanupRoom() }
     finally { startInFlight = false }
   }

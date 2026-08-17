@@ -2,6 +2,7 @@ import { createMediaSignedUrl, prepareImageForUpload, prepareVideoForUpload, upl
 import { runQueuedUpload } from './useMediaUploadQueue'
 import { appendUniqueMessage, mapMessageRow, unreadMessageIds, updateMessageReadAt } from '~/utils/messageState'
 import type { ChatMessage } from '~/utils/messageState'
+import { createUuid } from '~/utils/browserUuid'
 const messages=ref<ChatMessage[]>([]);const messagesLoading=ref(false);const messagesLoadingMore=ref(false);const messagesHasMore=ref(true);let oldestMessageCursor='';let messageChannel:any=null;let reconnectTimer:ReturnType<typeof setTimeout>|null=null;let reconnectAttempt=0;let intentionallyDisconnected=false;let networkListenersReady=false
 export function useMessages(){const{$supabase}=useNuxtApp();const{profile,demoMode}=useCoupleAuth();const{recordActivity}=useCouplePet();const unreadCount=computed(()=>messages.value.filter(x=>x.senderId!==profile.value?.id&&!x.readAt).length)
 function clearReconnect(){if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}}
@@ -22,9 +23,9 @@ async function send(content:string,file?:File){
       if(mediaType==='image') uploadFile=await prepareImageForUpload(uploadFile)
       if(mediaType==='video') uploadFile=await prepareVideoForUpload(uploadFile)
       if(!$supabase||demoMode.value){url=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result as string);r.onerror=reject;r.readAsDataURL(uploadFile)})}
-      else{const uploaded=await runQueuedUpload(uploadFile,`悄悄话 · ${uploadFile.name}`,async setProgress=>{setProgress(20);const ext=uploadFile.name.split('.').pop()?.toLowerCase()||(mediaType==='audio'?'webm':mediaType==='video'?'webm':'jpg');const nextPath=`${profile.value!.coupleId}/messages/${crypto.randomUUID()}.${ext}`;const{error}=await uploadMediaResumable($supabase,'message-media',nextPath,uploadFile,value=>setProgress(20+Math.round(value*.62)));if(error)throw error;setProgress(82);return{path:nextPath,url:await mediaUrl(nextPath,false,mediaType)}},{kind:'message',coupleId:profile.value!.coupleId,mediaType:uploadFile.type});path=uploaded.path;url=uploaded.url}
+      else{const uploaded=await runQueuedUpload(uploadFile,`悄悄话 · ${uploadFile.name}`,async setProgress=>{setProgress(20);const ext=uploadFile.name.split('.').pop()?.toLowerCase()||(mediaType==='audio'?'webm':mediaType==='video'?'webm':'jpg');const nextPath=`${profile.value!.coupleId}/messages/${createUuid()}.${ext}`;const{error}=await uploadMediaResumable($supabase,'message-media',nextPath,uploadFile,value=>setProgress(20+Math.round(value*.62)));if(error)throw error;setProgress(82);return{path:nextPath,url:await mediaUrl(nextPath,false,mediaType)}},{kind:'message',coupleId:profile.value!.coupleId,mediaType:uploadFile.type});path=uploaded.path;url=uploaded.url}
     }
-    if(!$supabase||demoMode.value){messages.value.push({id:crypto.randomUUID(),senderId:profile.value?.id||'demo-user',content,mediaPath:path,mediaUrl:url,mediaType,legacyMedia:false,readAt:'',createdAt:new Date().toISOString()});localStorage.setItem('couple-space-messages',JSON.stringify(messages.value));void recordActivity(file ? (mediaType === 'video' ? 'video' : 'photo') : 'message');return}
+    if(!$supabase||demoMode.value){messages.value.push({id:createUuid(),senderId:profile.value?.id||'demo-user',content,mediaPath:path,mediaUrl:url,mediaType,legacyMedia:false,readAt:'',createdAt:new Date().toISOString()});localStorage.setItem('couple-space-messages',JSON.stringify(messages.value));void recordActivity(file ? (mediaType === 'video' ? 'video' : 'photo') : 'message');return}
     const{error}=await $supabase.from('messages').insert({couple_id:profile.value!.coupleId,sender_id:profile.value!.id,content:content||null,media_path:path||null,media_type:mediaType||null});if(error)throw error
     void recordActivity(file ? (mediaType === 'video' ? 'video' : 'photo') : 'message')
   } catch (error) {

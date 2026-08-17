@@ -18,6 +18,7 @@ export type Memory = {
 export type MemoryInput = Pick<Memory, 'content' | 'memoryDate' | 'location' | 'photos'>
 import { createMediaSignedUrl, createMediaSignedUrls, prepareImageVariants, uploadMediaResumable } from './useMediaUrls'
 import { runQueuedUpload } from './useMediaUploadQueue'
+import { createUuid } from '~/utils/browserUuid'
 
 const demoSeed: Memory[] = [
   {
@@ -206,7 +207,7 @@ export function useMemories() {
       for (const sourceFile of files) {
         const result = await runQueuedUpload(sourceFile, `时光 · ${sourceFile.name}`, async setProgress => {
           const variants = await prepareImageVariants(sourceFile); setProgress(25)
-          const base = `${profile.value!.coupleId}/${crypto.randomUUID()}`
+          const base = `${profile.value!.coupleId}/${createUuid()}`
           const paths = { thumb: `${base}/thumb.jpg`, medium: `${base}/medium.jpg`, original: `${base}/original.jpg` }
           uploadedPaths.push(...Object.values(paths))
           const uploadResults = await Promise.all([
@@ -231,7 +232,7 @@ export function useMemories() {
     const uploadedPhotos = await uploadPhotos(files)
     const photos = [...input.photos, ...uploadedPhotos]
     if (!$supabase || demoMode.value) {
-      memories.value.unshift({ ...input, photos, id: crypto.randomUUID(), authorId: profile.value?.id || 'demo-user', authorName: profile.value?.displayName || '我', createdAt: new Date().toISOString(), favoriteCount: 0, isFavorite: false, reactions: {}, comments: [] })
+      memories.value.unshift({ ...input, photos, id: createUuid(), authorId: profile.value?.id || 'demo-user', authorName: profile.value?.displayName || '我', createdAt: new Date().toISOString(), favoriteCount: 0, isFavorite: false, reactions: {}, comments: [] })
       memories.value.sort((a, b) => b.memoryDate.localeCompare(a.memoryDate)); saveDemo(); void recordActivity('memory'); return
     }
     const { error } = await $supabase.from('memories').insert({ couple_id: profile.value!.coupleId, author_id: profile.value!.id, content: input.content, memory_date: input.memoryDate, location: input.location || null, photos: photos.map(({ path, thumbPath, mediumPath, originalPath }) => ({ path, thumbPath, mediumPath, originalPath })) })
@@ -289,7 +290,7 @@ export function useMemories() {
   async function addComment(memory: Memory, content: string) {
     const text = content.trim(); if (!text) return
     ensureInteractionState(memory)
-    if (!$supabase || demoMode.value || !profile.value?.coupleId) { memory.comments.unshift({ id: crypto.randomUUID(), userId: profile.value?.id || 'demo-user', authorName: '我', content: text, createdAt: new Date().toISOString() }); memory.comments = memory.comments.slice(0, 6); saveDemo(); return }
+    if (!$supabase || demoMode.value || !profile.value?.coupleId) { memory.comments.unshift({ id: createUuid(), userId: profile.value?.id || 'demo-user', authorName: '我', content: text, createdAt: new Date().toISOString() }); memory.comments = memory.comments.slice(0, 6); saveDemo(); return }
     const { data, error } = await $supabase.from('memory_comments').insert({ memory_id: memory.id, couple_id: profile.value.coupleId, user_id: profile.value.id, content: text }).select('id, memory_id, user_id, content, created_at').single()
     if (error) throw error
     memory.comments.unshift({ id: data.id, userId: data.user_id, authorName: '我', content: data.content, createdAt: data.created_at }); memory.comments = memory.comments.slice(0, 6)

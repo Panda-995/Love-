@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
@@ -273,7 +274,7 @@ export function nowIso() {
 }
 
 export function newId() {
-  return crypto.randomUUID()
+  return randomUUID()
 }
 
 export function useLocalDb() {

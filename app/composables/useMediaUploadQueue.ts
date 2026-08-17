@@ -1,6 +1,7 @@
 import Uppy from '@uppy/core'
 import GoldenRetriever from '@uppy/golden-retriever'
 import { restorePersistedJobs, restoredJobPatch, uploadQueueStorageKey } from '~/utils/uploadQueuePersistence'
+import { createUuid } from '~/utils/browserUuid'
 
 export type UploadJobStatus = 'queued' | 'uploading' | 'retrying' | 'paused' | 'completed' | 'failed'
 export type UploadOperation = {
@@ -119,7 +120,7 @@ function removeUppyFile(job: UploadJob) {
 
 export async function runQueuedUpload<T>(file: File, label: string, runner: Runner<T>, operation?: UploadOperation) {
   init()
-  const id = crypto.randomUUID()
+  const id = createUuid()
   const job: UploadJob = { id, name: label || file.name, size: file.size, progress: 0, status: 'queued', attempts: 0, error: '', createdAt: new Date().toISOString(), operation }
   jobs.value.push(job)
   persist()

@@ -1,3 +1,5 @@
+import { createUuid } from './browserUuid'
+
 export type ChatMessage = {
   id: string
   senderId: string
@@ -33,7 +35,7 @@ export function mapMessageRow(row: any, now = new Date().toISOString()): ChatMes
   const path = row?.media_path || row?.image_path || ''
   const mediaType = row?.media_type || (path ? 'image' : '')
   return {
-    id: String(row?.id || crypto.randomUUID()),
+    id: String(row?.id || createUuid()),
     senderId: String(row?.sender_id || ''),
     content: normalizeMessageContent(row?.content),
     mediaPath: String(path || ''),
