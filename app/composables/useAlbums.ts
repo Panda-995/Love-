@@ -130,7 +130,7 @@ export function useAlbums() {
         const coverItems = (albumRows || []).filter((row: any) => row.cover_path).map((row: any) => ({ path: row.cover_path, bucket: 'album-media', transform: imageTransform }))
         const coverUrls = await createMediaSignedUrls($supabase, coverItems)
         const countEntries = await Promise.all((albumRows || []).map(async (row: any) => { const { count } = await $supabase.from('album_photos').select('id', { count: 'exact', head: true }).eq('album_id', row.id); return [row.id, count || 0] as const }))
-        const photoCounts = new Map(countEntries)
+        const photoCounts = new Map<string, number>(countEntries)
         albums.value = albums.value.map(album => { const row = (albumRows || []).find((item: any) => item.id === album.id); return { ...album, coverUrl: row?.cover_path ? coverUrls.get(`album-media:${row.cover_path}`) || '' : '', photoCount: photoCounts.get(album.id) || 0 } })
       })().catch(() => undefined)
       albumsLoaded.value = true
@@ -239,7 +239,7 @@ export function useAlbums() {
   async function deletePhoto(photo: GalleryPhoto) {
     if (photo.source === 'memory') throw new Error('时光轴照片请在对应回忆中编辑')
     if (!$supabase || demoMode.value) { albumPhotos.value = albumPhotos.value.filter(item => item.id !== photo.id); demoSave(); return }
-    const paths = [...new Set([photo.path, photo.thumbPath, photo.mediumPath, photo.originalPath, photo.videoPosterPath].filter(Boolean))]
+    const paths = [...new Set([photo.path, photo.thumbPath, photo.mediumPath, photo.originalPath, photo.videoPosterPath].filter((path): path is string => Boolean(path)))]
     if (paths.length) {
       const { error: storageError } = await $supabase.storage.from(photo.legacy ? 'memory-photos' : 'album-media').remove(paths)
       if (storageError) throw storageError

@@ -10,7 +10,7 @@ const props = withDefaults(defineProps<{
   action?: string
 }>(), { species: 'bunny', skin: 'lavender', accessories: () => [], mood: 80, level: 1, action: '' })
 
-const canvas = ref<HTMLCanvasElement | null>(null)
+const canvas = shallowRef<HTMLCanvasElement | null>(null)
 const failed = ref(false)
 const fallbackArt = computed(() => ({ bunny: '🐰', cat: '🐱', puppy: '🐶', bear: '🐻', fox: '🦊', panda: '🐼', penguin: '🐧', hamster: '🐹' }[props.species]))
 let THREE: any
@@ -143,7 +143,7 @@ function buildRoom() {
   const woodMat = material(props.skin === 'night' ? 0x3b3d68 : 0xc89eb9, .82)
   const goldMat = material(0xf3cc82, .38, .18)
   roomMesh(new THREE.CylinderGeometry(1.75, 1.85, .08, 64), floorMat, [0, -1.04, -.12])
-  roomMesh(new THREE.TorusGeometry(1.13, .025, 10, 48), material(accent, .88), [0, -1, -.15], [1, .63, 1])
+  roomMesh(new THREE.TorusGeometry(1.13, .025, 10, 48), material(accent!, .88), [0, -1, -.15], [1, .63, 1])
   roomMesh(new THREE.BoxGeometry(.48, .12, .42), woodMat, [-1.38, -.63, -.2], [1, 1, 1])
   roomMesh(new THREE.CylinderGeometry(.13, .16, .28, 20), material(0xd89cae), [-1.38, -.43, -.2])
   const leaves = [[-1.5, -.24, -.17], [-1.28, -.2, -.17], [-1.4, -.09, -.17]] as const
@@ -170,7 +170,7 @@ function buildModel() {
   const species = props.species
   const stage = (props.level || 1) >= 10 ? 3 : (props.level || 1) >= 5 ? 2 : 1
   const skinColor = colors[props.skin] || colors.lavender
-  const bodyColor = speciesBody[species] ? tintColor(speciesBody[species], skinColor) : skinColor
+  const bodyColor = speciesBody[species] ? tintColor(speciesBody[species]!, skinColor!) : skinColor!
   const dark = species === 'panda' ? 0x282733 : props.skin === 'night' ? 0x25294d : 0x493153
   const cream = speciesCream[species] || 0xfff5fa
   model.scale.setScalar(stage === 1 ? .88 : stage === 2 ? 1 : 1.1)

@@ -1,6 +1,8 @@
 # Nuxt dev/build outputs
 .output
 .data
+data
+.tmp-local-data
 .nuxt
 .nitro
 .cache
@@ -29,7 +31,5 @@ logs
 android/app/google-services.json
 firebase-service-account.json
 
-# coturn secrets and TLS material
+# coturn local override
 infra/coturn/.env
-infra/coturn/certs/*
-!infra/coturn/certs/.gitkeep

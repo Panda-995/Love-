@@ -4,7 +4,7 @@ import { Check, Database, ExternalLink, GitFork, Heart, Info, LockKeyhole, Refre
 const emit = defineEmits<{ close: [] }>()
 const { currentVersion, checking, manifest, check, openUpdate } = useAppUpdate()
 const checkMessage = ref('')
-const githubUrl = 'https://github.com/XTH-LOVE/Love-'
+const githubUrl = 'https://github.com/panda-995/Love-'
 const appVersion = computed(() => `v${currentVersion}`)
 const buildTarget = computed(() => import.meta.client
   ? /Android/i.test(navigator.userAgent) ? 'Android' : /Electron/i.test(navigator.userAgent) ? 'Windows 桌面版' : 'Web 版'
@@ -53,7 +53,7 @@ function openGithub() {
         <article><Info :size="16" /><div><span>开发者</span><strong>缐廷华</strong></div></article>
         <article><ShieldCheck :size="16" /><div><span>隐私边界</span><strong>仅同一情侣空间可见</strong></div></article>
         <article><Scale :size="16" /><div><span>构建版本</span><strong>{{ buildTarget }} · {{ buildDate }}</strong></div></article>
-        <article><LockKeyhole :size="16" /><div><span>数据存储</span><strong>Supabase 私有空间</strong></div></article>
+        <article><LockKeyhole :size="16" /><div><span>数据存储</span><strong>NAS 本地 SQLite 与媒体目录</strong></div></article>
       </div>
 
       <section class="about-section">
@@ -79,9 +79,9 @@ function openGithub() {
 
       <details class="about-details" open><summary><ShieldCheck :size="16" /> 隐私与安全</summary><p>我们只使用实现情侣空间所需的数据。照片、视频和消息默认属于你们的私密内容，请不要把邀请码或登录凭据分享给他人。</p></details>
       <details class="about-details"><summary><Database :size="16" /> 数据如何被使用</summary><p>账号信息用于登录和情侣空间成员识别；照片、视频和消息用于在双方设备间同步；通知和上传状态用于提醒和恢复任务。删除账户或退出情侣空间后，相关数据会按服务端规则处理。</p></details>
-      <details class="about-details"><summary><Info :size="16" /> 服务边界与可用性</summary><p>Love小家依赖 Supabase 存储与实时服务、浏览器或系统通知能力，以及通话服务商。网络、设备权限或第三方服务异常时，部分功能可能暂时不可用；软件会尽量保留本地状态并提供重试。</p></details>
-      <details class="about-details"><summary><Scale :size="16" /> 服务与开源许可</summary><p>本软件由缐廷华开发维护，部分能力使用 Supabase、Nuxt、Vue、Lucide 等开源项目。第三方服务的可用性以其服务条款为准。</p></details>
-      <details class="about-details"><summary><GitFork :size="16" /> 项目与反馈</summary><p>项目地址：<button class="inline-link" type="button" @click="openGithub">github.com/XTH-LOVE/Love-</button></p></details>
+      <details class="about-details"><summary><Info :size="16" /> 服务边界与可用性</summary><p>账号、SQLite、媒体、实时同步和通话凭据都由你的 NAS 提供。高德地图、可选 AI 接口和 Android FCM 推送需要访问对应外部服务；未配置时只影响各自功能。</p></details>
+      <details class="about-details"><summary><Scale :size="16" /> 服务与开源许可</summary><p>本软件由缐廷华开发维护，使用 Nuxt、Vue、SQLite、coturn、Lucide 等开源项目。高德地图、AI 接口与 FCM 的可用性以其服务条款为准。</p></details>
+      <details class="about-details"><summary><GitFork :size="16" /> 项目与反馈</summary><p>项目地址：<button class="inline-link" type="button" @click="openGithub">github.com/panda-995/Love-</button></p></details>
       <footer><strong>Love小家</strong><span>由缐廷华开发维护 · 构建于 {{ buildDate }}</span><small>感谢你们把平凡的日子，过成值得收藏的故事。</small></footer>
     </section>
   </div>

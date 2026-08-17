@@ -2,7 +2,7 @@
 import { Heart } from '@lucide/vue'
 const quotes=['今天也别忘了好好吃饭。','下班路上慢一点，我等你。','想起你时，心里会安静一下。','有你在，回家这件事就有了方向。','今天的快乐，想第一个告诉你。','我们不赶时间，慢慢把日子过好。','你忙你的，我会一直在。','下次见面，记得多抱一会儿。','一起买菜、散步、看电影，已经很幸福。','谢谢你愿意听我说这些小事。','天气好的时候，想和你去晒晒太阳。','不需要每天都特别，陪着就很好。']
 const index=ref(Math.floor(Date.now()/86400000)%quotes.length);let timer:ReturnType<typeof setInterval>|undefined
-const displayQuote = computed(() => quotes[index.value].replace(/^\s*[“”"'「」]+|[“”"'「」]+\s*$/g, '').replace(/\s+/g, ' ').trim())
+const displayQuote = computed(() => (quotes[index.value] || '').replace(/^\s*[“”"'「」]+|[“”"'「」]+\s*$/g, '').replace(/\s+/g, ' ').trim())
 onMounted(()=>timer=setInterval(()=>index.value=(index.value+1)%quotes.length,10000));onBeforeUnmount(()=>{if(timer)clearInterval(timer)})
 </script>
 <template><section class="quote-stage"><div class="quote-mark"><Heart :size="22" fill="currentColor"/></div><div class="quote-copy"><span>今日情话</span><Transition name="quote" mode="out-in"><p :key="index">{{displayQuote}}</p></Transition></div></section></template>

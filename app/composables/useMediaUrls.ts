@@ -1,11 +1,10 @@
 export type MediaTransform = { width?: number; height?: number; quality?: number; resize?: 'cover' | 'contain' | 'fill' }
-type SupabaseLike = { supabaseUrl?: string; storage: { from: (bucket: string) => { upload: (path: string, file: File, options?: { contentType?: string; upsert?: boolean }) => Promise<{ error?: any }>; createSignedUrl: (path: string, expiresIn: number, options?: { transform?: MediaTransform }) => Promise<{ data?: { signedUrl?: string } | null; error?: unknown }>; createSignedUrls?: (paths: string[], expiresIn: number, options?: { transform?: MediaTransform }) => Promise<{ data?: Array<{ path?: string; signedUrl?: string }> | null; error?: unknown }> } }; auth?: { getSession: () => Promise<{ data?: { session?: { access_token?: string } | null } }> } }
-let resumableUploadsDisabled = false
+type StorageClientLike = { storage: { from: (bucket: string) => { upload: (path: string, file: File, options?: { contentType?: string; upsert?: boolean }) => Promise<{ error?: any }>; createSignedUrl: (path: string, expiresIn: number, options?: { transform?: MediaTransform }) => Promise<{ data?: { signedUrl?: string } | null; error?: unknown }>; createSignedUrls?: (paths: string[], expiresIn: number, options?: { transform?: MediaTransform }) => Promise<{ data?: Array<{ path?: string; signedUrl?: string }> | null; error?: unknown }> } } }
 
 type CachedUrl = { url: string; expiresAt: number }
 const signedUrlCache = new Map<string, CachedUrl>()
 const pendingUrlRequests = new Map<string, Promise<string>>()
-// Supabase signs media URLs for 24 hours. Keep the browser-side URL cache
+// Keep media URL entries warm for 24 hours to avoid repeated metadata requests.
 // shorter than that so a refreshed page can render without another round trip.
 const CACHE_TTL = 20 * 60 * 60 * 1000
 const REQUEST_TIMEOUT = 8000
@@ -132,7 +131,7 @@ export function mediaBucketForPath(path: string, legacy = false) {
   return path.includes('/album-media/') || path.startsWith('album-media/') ? 'album-media' : 'memory-photos'
 }
 
-export async function createMediaSignedUrl(supabase: SupabaseLike | null | undefined, path: string, bucket?: string, transform?: MediaTransform, expiresIn = 86400) {
+export async function createMediaSignedUrl(supabase: StorageClientLike | null | undefined, path: string, bucket?: string, transform?: MediaTransform, expiresIn = 86400) {
   if (!supabase || !path) return ''
   loadPersistedCache()
   const targetBucket = bucket || mediaBucketForPath(path)
@@ -164,7 +163,7 @@ export async function createMediaSignedUrl(supabase: SupabaseLike | null | undef
   return request
 }
 
-export async function createMediaSignedUrls(supabase: SupabaseLike | null | undefined, items: Array<{ path: string; bucket?: string; transform?: MediaTransform }>, expiresIn = 86400) {
+export async function createMediaSignedUrls(supabase: StorageClientLike | null | undefined, items: Array<{ path: string; bucket?: string; transform?: MediaTransform }>, expiresIn = 86400) {
   const result = new Map<string, string>()
   if (!supabase || !items.length) return result
   loadPersistedCache()
@@ -211,7 +210,7 @@ export async function createMediaSignedUrls(supabase: SupabaseLike | null | unde
 
 function responseHasMissing(result: Map<string, string>, bucket: string, items: Array<{ path: string }>) { return items.some(item => !result.has(`${bucket}:${item.path}`)) }
 
-export async function refreshMediaElement(event: Event, supabase: SupabaseLike | null | undefined, path: string, bucket?: string, transform?: MediaTransform) {
+export async function refreshMediaElement(event: Event, supabase: StorageClientLike | null | undefined, path: string, bucket?: string, transform?: MediaTransform) {
   const element = event.currentTarget as (HTMLImageElement | HTMLVideoElement | HTMLAudioElement) | null
   if (!element || !path || element.dataset.mediaRetried === '1') return false
   element.dataset.mediaRetried = '1'
@@ -247,43 +246,13 @@ export async function prepareImageForUpload(file: File, maxSide = 1920, quality 
   }
 }
 
-/** Upload through Supabase Storage's Tus endpoint with automatic chunk retry.
- * Falls back to the regular Storage upload when the project/client does not
- * expose a resumable endpoint (for example an older local Supabase stack).
- */
-export async function uploadMediaResumable(supabase: SupabaseLike | null | undefined, bucket: string, path: string, file: File, onProgress?: (value: number) => void, upsert = false) {
-  if (!supabase) throw new Error('Supabase 尚未配置')
-  const fallback = () => supabase.storage.from(bucket).upload(path, file, { contentType: file.type, upsert })
-  const endpoint = supabase.supabaseUrl ? `${String(supabase.supabaseUrl).replace(/\/$/, '')}/storage/v1/upload/resumable` : ''
-  let accessToken = ''
-  try { accessToken = String((await supabase.auth?.getSession())?.data?.session?.access_token || '') } catch { /* Use fallback below. */ }
-  if (!endpoint || !accessToken || !import.meta.client || resumableUploadsDisabled) return fallback()
-  try {
-    const { Upload } = await import('tus-js-client')
-    await new Promise<void>((resolve, reject) => {
-      const upload = new Upload(file, {
-        endpoint,
-        chunkSize: 6 * 1024 * 1024,
-        retryDelays: [0, 1000, 3000, 5000, 10000],
-        removeFingerprintOnSuccess: true,
-        headers: { authorization: `Bearer ${accessToken}`, 'x-upsert': String(upsert) },
-        metadata: { bucketName: bucket, objectName: path, contentType: file.type || 'application/octet-stream', cacheControl: '3600' },
-        onError: reject,
-        onProgress: (bytesUploaded: number, bytesTotal: number) => onProgress?.(bytesTotal ? Math.round(bytesUploaded / bytesTotal * 100) : 0),
-        onSuccess: () => resolve(),
-      })
-      upload.start()
-    })
-    return { error: null }
-  } catch (error: any) {
-    const status = Number(error?.originalResponse?.getStatus?.() || error?.status || 0)
-    // Some hosted Supabase projects expose Storage uploads but disable the
-    // Tus resumable endpoint. Remember that capability failure for this tab
-    // and use the regular upload path without retrying a doomed request.
-    if ([401, 403].includes(status)) resumableUploadsDisabled = true
-    if (![401, 403, 404, 405, 501].includes(status)) throw error
-    return fallback()
-  }
+/** Upload to the authenticated NAS media endpoint. */
+export async function uploadMediaResumable(supabase: StorageClientLike | null | undefined, bucket: string, path: string, file: File, onProgress?: (value: number) => void, upsert = false) {
+  if (!supabase) throw new Error('本地媒体服务尚未连接')
+  onProgress?.(5)
+  const result = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type, upsert })
+  onProgress?.(100)
+  return result
 }
 
 export type PreparedImageVariants = { thumb: File; medium: File; original: File }

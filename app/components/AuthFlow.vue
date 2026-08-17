@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import './auth-pastel-theme.css'
 import './auth-single-card.css'
-import { ArrowLeft, Check, Copy, Heart, KeyRound, Link2, LoaderCircle, Mail, ShieldCheck, Sparkles, UserRound } from '@lucide/vue'
+import { ArrowLeft, Check, Copy, Heart, KeyRound, Link2, LoaderCircle, ShieldCheck, Sparkles, UserRound } from '@lucide/vue'
 
 const emit = defineEmits<{ complete: [] }>()
-const { configured, demoMode, loading, profile, stage, signIn, signUp, signInWithAccount, signUpWithAccount, signInWithOAuth, recoverAccount, resendConfirmation, createCouple, joinCouple } = useCoupleAuth()
+const { loading, profile, stage, signInWithAccount, signUpWithAccount, recoverAccount, createCouple, joinCouple } = useCoupleAuth()
 const mode = ref<'login' | 'register'>('login')
-const loginType = ref<'email' | 'account'>('email')
 const recovering = ref(false)
 const pairingMode = ref<'choose' | 'create' | 'join'>('choose')
 const displayName = ref('')
-const email = ref('')
 const username = ref('')
 const recoveryCode = ref('')
 const generatedRecoveryCode = ref('')
@@ -22,33 +20,18 @@ const inviteCode = ref('')
 const generatedCode = ref('')
 const errorMessage = ref('')
 const copied = ref(false)
-const resendStatus = ref('')
 
 async function submitAuth() {
   errorMessage.value = ''
   try {
-    if (loginType.value === 'account') {
-      if (!/^[a-zA-Z0-9_]{4,20}$/.test(username.value)) throw new Error('账号名需要 4-20 位字母、数字或下划线')
-      if (password.value.length < 8) throw new Error('密码至少需要 8 位')
-      if (mode.value === 'register') {
-        if (!displayName.value.trim()) throw new Error('请输入你的称呼')
-        const result = await signUpWithAccount(displayName.value.trim(), username.value, password.value)
-        generatedRecoveryCode.value = result.recoveryCode
-      } else await signInWithAccount(username.value, password.value)
-      return
-    }
-    if (!email.value || password.value.length < 6) throw new Error('请输入有效邮箱，密码至少需要 6 位')
+    if (!/^[a-zA-Z0-9_]{4,20}$/.test(username.value)) throw new Error('账号名需要 4-20 位字母、数字或下划线')
+    if (password.value.length < 8) throw new Error('密码至少需要 8 位')
     if (mode.value === 'register') {
       if (!displayName.value.trim()) throw new Error('请输入你的称呼')
-      await signUp(displayName.value.trim(), email.value.trim(), password.value)
-    } else await signIn(email.value.trim(), password.value)
+      const result = await signUpWithAccount(displayName.value.trim(), username.value, password.value)
+      generatedRecoveryCode.value = result.recoveryCode
+    } else await signInWithAccount(username.value, password.value)
   } catch (error: any) { errorMessage.value = error.message || '操作失败，请稍后再试' }
-}
-
-async function submitOAuth(provider: 'google' | 'github') {
-  errorMessage.value = ''
-  try { await signInWithOAuth(provider) }
-  catch (error: any) { errorMessage.value = error.message || '第三方登录暂时不可用，请使用邮箱登录' }
 }
 
 async function submitRecovery(){errorMessage.value='';try{if(password.value.length<8)throw new Error('新密码至少需要 8 位');await recoverAccount(username.value,recoveryCode.value,password.value);recovering.value=false;mode.value='login';recoveryCode.value='';errorMessage.value='密码已重置，请使用新密码登录'}catch(error:any){errorMessage.value=error.message||'重置失败'}}
@@ -72,12 +55,6 @@ async function copyCode() {
   window.setTimeout(() => copied.value = false, 1600)
 }
 
-async function resendEmail() {
-  errorMessage.value = ''; resendStatus.value = ''; loading.value = true
-  try { await resendConfirmation(email.value); resendStatus.value = '新的确认邮件已发送，请检查收件箱和垃圾邮件。' }
-  catch (error: any) { errorMessage.value = error.message || '重新发送失败，请稍后再试' }
-  finally { loading.value = false }
-}
 </script>
 
 <template>
@@ -99,17 +76,7 @@ async function resendEmail() {
         <div><small>LOVE NOTE</small><strong>今天也要把心意留给彼此。</strong></div>
         <i>♡</i>
       </aside>
-      <div v-if="stage === 'awaiting-confirmation'" class="auth-card confirmation-card">
-        <span class="confirmation-icon"><Mail :size="25" /></span>
-        <p class="eyebrow">确认邮箱</p>
-        <h2>确认邮件已经发出</h2>
-        <p>请打开 <strong>{{ email }}</strong> 收到的确认邮件。确认完成后回到这里登录，即可创建情侣空间。</p>
-        <p v-if="resendStatus" class="resend-status">{{ resendStatus }}</p>
-        <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
-        <button class="auth-submit" type="button" :disabled="loading" @click="resendEmail"><LoaderCircle v-if="loading" class="spin" :size="18" /> 重新发送确认邮件</button>
-        <button class="mode-switch" type="button" @click="stage = 'signed-out'; mode = 'login'">已经确认？返回登录</button>
-      </div>
-      <div v-else-if="stage === 'signed-out'" class="auth-card">
+      <div v-if="stage === 'signed-out'" class="auth-card">
         <div class="auth-brand-lockup"><span class="auth-brand-icon"><img src="/couplespace-mark.svg" alt=""></span><div><strong>Love小家</strong><small>只属于两个人的日常</small></div><span class="auth-brand-heart"><Heart :size="15" fill="currentColor" /></span></div>
         <div v-if="generatedRecoveryCode" class="recovery-result"><ShieldCheck :size="30"/><p class="eyebrow">RECOVERY CODE</p><h2>保存你的恢复码</h2><p>忘记密码时，这是找回账号的唯一凭证。它只显示这一次。</p><button class="code-box" type="button" @click="copyRecovery"><strong>{{generatedRecoveryCode}}</strong><Copy :size="18"/></button><label><input v-model="recoverySaved" type="checkbox">我已经安全保存恢复码</label><button class="auth-submit" :disabled="!recoverySaved" @click="generatedRecoveryCode='';mode='login';signInWithAccount(username,password)">进入 Love小家</button></div>
         <template v-else>
@@ -118,21 +85,16 @@ async function resendEmail() {
           <h2>{{ mode === 'login' ? '回到我们的空间' : '从今天开始记录' }}</h2>
           <span>{{ mode === 'login' ? '登录后继续收藏两个人的日常。' : '先创建你的账户，下一步邀请另一半。' }}</span>
         </div>
-        <div v-if="!configured" class="demo-banner">当前为本地演示模式，配置 Supabase 后将启用真实账户。</div>
-        <div class="login-type" role="tablist" aria-label="登录方式"><button type="button" role="tab" :aria-selected="loginType==='email'" :class="{active:loginType==='email'}" @click="loginType='email';recovering=false">邮箱密码</button><button type="button" role="tab" :aria-selected="loginType==='account'" :class="{active:loginType==='account'}" @click="loginType='account';recovering=false">账号密码</button></div>
+        <p class="auth-trust"><ShieldCheck :size="15" />账号和数据仅保存在你的 NAS，不依赖第三方登录。</p>
         <form v-if="!recovering" class="auth-form" @submit.prevent="submitAuth">
           <label v-if="mode === 'register'"><span>你的称呼</span><div><UserRound :size="18" /><input v-model="displayName" autocomplete="name" placeholder="例如：小林"></div></label>
-          <label v-if="loginType==='email'"><span>邮箱</span><div><Mail :size="18" /><input v-model="email" type="email" autocomplete="email" placeholder="name@example.com"></div></label>
-          <label v-else><span>账号名</span><div><UserRound :size="18"/><input v-model="username" autocomplete="username" placeholder="4-20 位字母、数字或下划线"></div></label>
+          <label><span>账号名</span><div><UserRound :size="18"/><input v-model="username" autocomplete="username" placeholder="4-20 位字母、数字或下划线"></div></label>
           <label><span>密码</span><div><KeyRound :size="18" /><input v-model="password" type="password" :autocomplete="mode === 'login' ? 'current-password' : 'new-password'" placeholder="至少 6 位"></div></label>
           <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
           <button class="auth-submit" type="submit" :disabled="loading"><LoaderCircle v-if="loading" class="spin" :size="18" />{{ mode === 'login' ? '登录 Love小家' : '创建账户' }}</button>
         </form>
         <form v-else class="auth-form" @submit.prevent="submitRecovery"><label><span>账号名</span><div><UserRound :size="18"/><input v-model="username"></div></label><label><span>恢复码</span><div><ShieldCheck :size="18"/><input v-model="recoveryCode" placeholder="XXXX-XXXX-XXXX-XXXX"></div></label><label><span>新密码</span><div><KeyRound :size="18"/><input v-model="password" type="password" placeholder="至少 8 位"></div></label><p v-if="errorMessage" class="form-error">{{errorMessage}}</p><button class="auth-submit" :disabled="loading">重置密码</button></form>
-        <div v-if="mode === 'login' && !recovering" class="oauth-divider"><span>或使用其他方式</span></div>
-        <div v-if="mode === 'login' && !recovering" class="oauth-actions"><button type="button" class="oauth-button" @click="submitOAuth('google')"><img src="/auth/google.svg" alt="" aria-hidden="true">Google</button><button type="button" class="oauth-button" @click="submitOAuth('github')"><img src="/auth/github.svg" alt="" aria-hidden="true">GitHub</button></div>
-        <p v-if="mode === 'login' && !recovering" class="auth-trust"><ShieldCheck :size="15" />第三方登录只用于身份验证，不会读取你的密码。</p>
-        <button v-if="loginType==='account'&&mode==='login'" class="mode-switch" type="button" @click="recovering=!recovering;errorMessage=''">{{recovering?'返回登录':'忘记密码？使用恢复码'}}</button>
+        <button v-if="mode==='login'" class="mode-switch" type="button" @click="recovering=!recovering;errorMessage=''">{{recovering?'返回登录':'忘记密码？使用恢复码'}}</button>
         <button class="mode-switch" type="button" @click="mode = mode === 'login' ? 'register' : 'login'; errorMessage = ''">
           {{ mode === 'login' ? '还没有账户？创建一个' : '已有账户？返回登录' }}
         </button>
@@ -230,7 +192,7 @@ async function resendEmail() {
 .visual-copy h1 { margin: 0; max-width: 580px; font-size: clamp(36px, 4vw, 56px); font-weight: 800; line-height: 1.32; color:#573064; }
 .promise-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 .promise-row span { display: flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid rgba(255,255,255,.75); border-radius: 13px; background: rgba(255,255,255,.5); color: #655b70; font-size: 11px; }
-.visual-photo { position: absolute; right: 0; bottom: 0; left: 0; height: 43%; background: linear-gradient(0deg, transparent 78%, #e9e2f5 100%), url('https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1200&q=84') center 58%/cover; opacity: .88; }
+.visual-photo { position: absolute; right: 0; bottom: 0; left: 0; height: 43%; background: linear-gradient(0deg, transparent 78%, #e9e2f5 100%), url('/login-couple.jpg') center 58%/cover; opacity: .88; }
 .auth-workspace { display: grid; place-items: center; padding: 48px clamp(28px, 6vw, 88px); background:radial-gradient(circle at 80% 20%,rgba(236,195,255,.32),transparent 32%); }
 .auth-card { width: min(100%, 430px); }
 .auth-heading h2 { margin: 0 0 10px; font-size: 34px; font-weight: 800; color:#4d2d57; }
@@ -295,7 +257,7 @@ async function resendEmail() {
 .visual-copy h1 { max-width: 530px; color: #342c3a; font-size: clamp(34px, 3.6vw, 52px); font-weight: 720; letter-spacing: 0; line-height: 1.42; }
 .promise-row { gap: 9px; margin-top: 24px; }
 .promise-row span { padding: 8px 10px; border: 0; border-radius: 8px; background: rgba(255,255,255,.58); color: #655d6a; }
-.visual-photo { height: 48%; background: linear-gradient(0deg, rgba(238,231,241,.95) 0%, transparent 54%), url('https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1200&q=84') center 58%/cover; opacity: .82; }
+.visual-photo { height: 48%; background: linear-gradient(0deg, rgba(238,231,241,.95) 0%, transparent 54%), url('/login-couple.jpg') center 58%/cover; opacity: .82; }
 .auth-workspace { padding: 48px clamp(28px, 6vw, 88px); background: #fcfbfc; }
 .auth-heading h2 { color: #342c3a; font-size: 30px; font-weight: 720; letter-spacing: 0; }
 .auth-heading > span { color: #776f7a; }

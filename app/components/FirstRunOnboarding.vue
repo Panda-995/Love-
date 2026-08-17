@@ -25,7 +25,7 @@ const introPages = [
   { icon: BellRing, title: '重要日子，不再错过', body: '纪念日可以安排系统提醒，Android、桌面端和网页都能收到通知。' },
 ]
 
-const currentIntro = computed(() => introPages[page.value] || introPages[0])
+const currentIntro = computed(() => introPages[page.value] ?? introPages[0]!)
 
 function next() {
   if (page.value < introPages.length - 1) page.value += 1

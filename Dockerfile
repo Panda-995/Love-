@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM node:22-alpine AS build
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 
 WORKDIR /app
 
@@ -10,15 +10,20 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine AS runtime
+FROM node:24-alpine AS runtime
 
 WORKDIR /app
 
 ENV NODE_ENV=production \
     NITRO_HOST=0.0.0.0 \
-    NITRO_PORT=3000
+    NITRO_PORT=3000 \
+    NUXT_LOCAL_DATA_DIR=/data
+
+RUN mkdir -p /data && chown node:node /data
 
 COPY --from=build --chown=node:node /app/.output ./.output
+
+VOLUME ["/data"]
 
 USER node
 

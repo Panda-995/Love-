@@ -1,7 +1,7 @@
 const { app, BrowserWindow, shell } = require('electron')
 const path = require('node:path')
 
-const APP_URL = 'https://love-home.pages.dev/'
+const APP_URL = process.env.LOVE_HOME_URL || 'http://127.0.0.1:3000/'
 
 if (!app.requestSingleInstanceLock()) app.quit()
 
@@ -30,7 +30,7 @@ function createWindow() {
     return { action: 'deny' }
   })
   window.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(APP_URL) && !url.startsWith('https://soketalclkibyilenvzv.supabase.co/')) {
+    if (!url.startsWith(APP_URL)) {
       event.preventDefault()
       shell.openExternal(url)
     }

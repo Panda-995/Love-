@@ -14,8 +14,8 @@ const networkOnline = ref(true)
 const lastSyncAt = ref('')
 let listenersReady = false
 
-function withTimeout<T>(promise: Promise<T>, timeout = 8000) {
-  return Promise.race([promise, new Promise<T | null>(resolve => globalThis.setTimeout(() => resolve(null), timeout))])
+function withTimeout<T>(promise: PromiseLike<T>, timeout = 8000) {
+  return Promise.race([Promise.resolve(promise), new Promise<T | null>(resolve => globalThis.setTimeout(() => resolve(null), timeout))])
 }
 
 function saveLastSync() {
@@ -54,7 +54,6 @@ async function checkPushPermission() {
 export function useSpaceStatus() {
   const { $supabase } = useNuxtApp()
   const { profile, demoMode } = useCoupleAuth()
-  const config = useRuntimeConfig()
 
   async function refresh() {
     setupNetworkListeners()
@@ -65,29 +64,33 @@ export function useSpaceStatus() {
       services.push = await checkPushPermission()
       return
     }
-    services.supabase = { state: 'checking', detail: '正在检查数据库连接' }
-    services.media = { state: 'checking', detail: '正在检查私有图片服务' }
-    services.call = { state: 'checking', detail: '正在检查通话配置' }
+    services.supabase = { state: 'checking', detail: '正在检查本地 SQLite' }
+    services.media = { state: 'checking', detail: '正在检查 NAS 媒体目录' }
+    services.call = { state: 'checking', detail: '正在检查 WebRTC 与 coturn' }
     services.push = await checkPushPermission()
     if (!$supabase || demoMode.value) {
-      services.supabase = { state: 'warning', detail: '当前为本地演示模式' }
-      services.media = { state: 'warning', detail: '演示媒体保存在本机' }
+      services.supabase = { state: 'warning', detail: '本地服务尚未连接' }
+      services.media = { state: 'warning', detail: 'NAS 媒体目录尚未连接' }
       services.call = { state: 'warning', detail: '登录并绑定情侣空间后可用' }
       saveLastSync()
       return
     }
-    const memberCheck = await withTimeout($supabase.from('couple_members').select('user_id', { count: 'exact', head: true }).eq('user_id', profile.value?.id || ''))
+    const memberCheck: any = await withTimeout($supabase.from('couple_members').select('user_id', { count: 'exact', head: true }).eq('user_id', profile.value?.id || ''))
     if (!memberCheck) services.supabase = { state: 'error', detail: '数据库请求超时' }
-    else if (memberCheck.error) services.supabase = { state: 'error', detail: '数据库连接失败，请重试' }
-    else services.supabase = { state: 'ok', detail: 'Supabase 数据库连接正常' }
+    else if (memberCheck.error) services.supabase = { state: 'error', detail: '本地数据库连接失败，请重试' }
+    else services.supabase = { state: 'ok', detail: 'SQLite 数据库连接正常' }
     const coupleId = profile.value?.coupleId
-    const mediaCheck = coupleId ? await withTimeout($supabase.storage.from('album-media').list(coupleId, { limit: 1 })) : null
+    const mediaCheck: any = coupleId ? await withTimeout($supabase.storage.from('album-media').list(coupleId, { limit: 1 })) : null
     if (!coupleId) services.media = { state: 'warning', detail: '绑定情侣空间后检查媒体服务' }
     else if (!mediaCheck) services.media = { state: 'error', detail: '图片服务请求超时' }
     else if (mediaCheck.error) services.media = { state: 'error', detail: '私有图片服务不可用' }
-    else services.media = { state: 'ok', detail: '私有图片服务连接正常' }
-    if (!coupleId || !Number(config.public.zegoAppId)) services.call = { state: 'error', detail: 'ZEGO AppID 或情侣空间未配置' }
-    else services.call = { state: 'ok', detail: 'ZEGO Token 服务已配置，可发起通话' }
+    else services.media = { state: 'ok', detail: 'NAS 媒体目录读写正常' }
+    if (!coupleId) services.call = { state: 'warning', detail: '绑定情侣空间后检查通话服务' }
+    else {
+      const rtc = await withTimeout($fetch<{ turnConfigured: boolean }>('/api/rtc').catch(() => null))
+      if (!rtc) services.call = { state: 'error', detail: 'WebRTC 配置请求失败' }
+      else services.call = rtc.turnConfigured ? { state: 'ok', detail: 'WebRTC 与本地 coturn 已配置' } : { state: 'warning', detail: 'WebRTC 可用于局域网；请配置 TURN_HOST 供外网通话' }
+    }
     saveLastSync()
   }
 
@@ -96,11 +99,10 @@ export function useSpaceStatus() {
       services.call = { state: 'warning', detail: '请先登录并绑定情侣空间' }
       return false
     }
-    services.call = { state: 'checking', detail: '正在请求 ZEGO Token 服务' }
-    const response = await withTimeout($supabase.functions.invoke('zego-token', { body: { roomId: 'status-' + profile.value.coupleId, userName: profile.value.displayName || 'Love小家' } }))
-    if (!response) { services.call = { state: 'error', detail: 'Token 服务请求超时' }; return false }
-    if (response.error || !response.data?.token) { services.call = { state: 'error', detail: 'Token 服务未返回有效凭据' }; return false }
-    services.call = { state: 'ok', detail: 'ZEGO Token 服务响应正常' }
+    services.call = { state: 'checking', detail: '正在检查 WebRTC 与 coturn' }
+    const response = await withTimeout($fetch<{ iceServers: RTCIceServer[]; turnConfigured: boolean }>('/api/rtc').catch(() => null))
+    if (!response) { services.call = { state: 'error', detail: '本地通话配置请求超时' }; return false }
+    services.call = response.turnConfigured ? { state: 'ok', detail: '本地 coturn 临时凭据生成正常' } : { state: 'warning', detail: '局域网通话可用；外网通话需要配置 TURN_HOST' }
     return true
   }
 

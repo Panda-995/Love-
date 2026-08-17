@@ -15,6 +15,7 @@ export type Memory = {
   reactions: Record<string, MemoryReaction>
   comments: MemoryComment[]
 }
+export type MemoryInput = Pick<Memory, 'content' | 'memoryDate' | 'location' | 'photos'>
 import { createMediaSignedUrl, createMediaSignedUrls, prepareImageVariants, uploadMediaResumable } from './useMediaUrls'
 import { runQueuedUpload } from './useMediaUploadQueue'
 
@@ -22,14 +23,14 @@ const demoSeed: Memory[] = [
   {
     id: 'demo-1', content: '没有特别安排的一天，却成为了这个夏天最喜欢的傍晚。海风很轻，我们沿着海边走了很久。',
     memoryDate: '2026-07-06', location: '青岛 · 燕儿岛', authorId: 'demo-user', authorName:'我', createdAt: '2026-07-06T19:20:00Z',
-    photos: [{ path: '', url: 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=1000&q=84' }], favoriteCount: 0, isFavorite: false, reactions: {}, comments: [],
+    photos: [{ path: '', url: '/login-couple.jpg' }], favoriteCount: 0, isFavorite: false, reactions: {}, comments: [],
   },
   {
     id: 'demo-2', content: '周末临时决定去喝咖啡。交换了最近在听的歌，也写下了下一次旅行想去的地方。',
     memoryDate: '2026-06-28', location: '老城区 · 梧桐咖啡', authorId: 'demo-user', authorName:'我', createdAt: '2026-06-28T15:30:00Z',
     photos: [
-      { path: '', url: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=900&q=82' },
-      { path: '', url: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=82' },
+      { path: '', url: '/login-couple.jpg' },
+      { path: '', url: '/login-couple.jpg' },
     ], favoriteCount: 0, isFavorite: false, reactions: {}, comments: [],
   },
 ]
@@ -52,7 +53,13 @@ export function useMemories() {
   function loadDemo() {
     const saved = localStorage.getItem('couple-space-memories')
     const rows = saved ? JSON.parse(saved) : demoSeed
-    memories.value = (Array.isArray(rows) ? rows : []).map((memory: Memory) => ({ favoriteCount: 0, isFavorite: false, reactions: {}, comments: [], ...memory }))
+    memories.value = (Array.isArray(rows) ? rows : []).map((memory: Memory) => ({
+      ...memory,
+      favoriteCount: memory.favoriteCount ?? 0,
+      isFavorite: memory.isFavorite ?? false,
+      reactions: memory.reactions ?? {},
+      comments: memory.comments ?? [],
+    }))
     memoriesLoaded.value = true
   }
 
@@ -220,23 +227,23 @@ export function useMemories() {
     return results
   }
 
-  async function createMemory(input: Omit<Memory, 'id' | 'authorId' | 'authorName' | 'createdAt'>, files: File[]) {
+  async function createMemory(input: MemoryInput, files: File[]) {
     const uploadedPhotos = await uploadPhotos(files)
     const photos = [...input.photos, ...uploadedPhotos]
     if (!$supabase || demoMode.value) {
-      memories.value.unshift({ ...input, photos, id: crypto.randomUUID(), authorId: profile.value?.id || 'demo-user',authorName:profile.value?.displayName||'我', createdAt: new Date().toISOString() })
+      memories.value.unshift({ ...input, photos, id: crypto.randomUUID(), authorId: profile.value?.id || 'demo-user', authorName: profile.value?.displayName || '我', createdAt: new Date().toISOString(), favoriteCount: 0, isFavorite: false, reactions: {}, comments: [] })
       memories.value.sort((a, b) => b.memoryDate.localeCompare(a.memoryDate)); saveDemo(); void recordActivity('memory'); return
     }
     const { error } = await $supabase.from('memories').insert({ couple_id: profile.value!.coupleId, author_id: profile.value!.id, content: input.content, memory_date: input.memoryDate, location: input.location || null, photos: photos.map(({ path, thumbPath, mediumPath, originalPath }) => ({ path, thumbPath, mediumPath, originalPath })) })
     if (error) {
-      const paths = [...new Set(uploadedPhotos.flatMap(photo => [photo.path, photo.thumbPath, photo.mediumPath, photo.originalPath]).filter(Boolean))]
+      const paths = [...new Set(uploadedPhotos.flatMap(photo => [photo.path, photo.thumbPath, photo.mediumPath, photo.originalPath]).filter((path): path is string => Boolean(path)))]
       if (paths.length) await $supabase.storage.from('memory-photos').remove(paths).catch(() => undefined)
       throw error
     }
     await loadMemories(); void recordActivity('memory')
   }
 
-  async function updateMemory(id: string, input: Omit<Memory, 'id' | 'authorId' | 'authorName' | 'createdAt'>, files: File[]) {
+  async function updateMemory(id: string, input: MemoryInput, files: File[]) {
     const uploadedPhotos = await uploadPhotos(files)
     const photos = [...input.photos, ...uploadedPhotos]
     if (!$supabase || demoMode.value) {
@@ -246,7 +253,7 @@ export function useMemories() {
     }
     const { error } = await $supabase.from('memories').update({ content: input.content, memory_date: input.memoryDate, location: input.location || null, photos: photos.map(({ path, thumbPath, mediumPath, originalPath }) => ({ path, thumbPath, mediumPath, originalPath })), updated_at: new Date().toISOString() }).eq('id', id)
     if (error) {
-      const paths = [...new Set(uploadedPhotos.flatMap(photo => [photo.path, photo.thumbPath, photo.mediumPath, photo.originalPath]).filter(Boolean))]
+      const paths = [...new Set(uploadedPhotos.flatMap(photo => [photo.path, photo.thumbPath, photo.mediumPath, photo.originalPath]).filter((path): path is string => Boolean(path)))]
       if (paths.length) await $supabase.storage.from('memory-photos').remove(paths).catch(() => undefined)
       throw error
     }
@@ -255,7 +262,7 @@ export function useMemories() {
 
   async function deleteMemory(memory: Memory) {
     if (!$supabase || demoMode.value) { memories.value = memories.value.filter(item => item.id !== memory.id); saveDemo(); return }
-    const paths = [...new Set(memory.photos.flatMap(photo => [photo.path, photo.thumbPath, photo.mediumPath, photo.originalPath]).filter(Boolean))]
+    const paths = [...new Set(memory.photos.flatMap(photo => [photo.path, photo.thumbPath, photo.mediumPath, photo.originalPath]).filter((path): path is string => Boolean(path)))]
     if (paths.length) await $supabase.storage.from('memory-photos').remove(paths)
     const { error } = await $supabase.from('memories').delete().eq('id', memory.id)
     if (error) throw error

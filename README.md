@@ -1,374 +1,181 @@
-<p align="center">
-  <img src="public/couplespace-mark.svg" width="108" alt="Love小家 logo">
-</p>
+# Love小家（NAS 本地版）
 
-<h1 align="center">Love小家 · CoupleSpace</h1>
+Love小家是一个情侣私密空间，包含本地账号、共同回忆、相册、悄悄话、情书、纪念日、共同清单、情侣宠物、AI 写作、位置地图、语音/视频通话和 Android 推送。
 
-<p align="center">
-  一个真正属于两个人的私密生活空间。<br>
-  把照片、视频、悄悄话、纪念日、AI 灵感和共同宠物，认真收藏在一起。
-</p>
+这个分支以 NAS 为中心运行：Web、API、SQLite、媒体、WebSocket 和 coturn 全部放在本地。运行时不需要 Supabase、Cloudflare、Google 登录、GitHub 登录或第三方通话服务，也不会连接外部服务生成网站。
 
-<p align="center">
-  <a href="https://github.com/XTH-LOVE/Love-"><img src="https://img.shields.io/github/stars/XTH-LOVE/Love-?style=for-the-badge&color=ff6fae&label=Stars" alt="GitHub stars"></a>
-  <a href="https://github.com/XTH-LOVE/Love-/network/members"><img src="https://img.shields.io/github/forks/XTH-LOVE/Love-?style=for-the-badge&color=9c6ade&label=Forks" alt="GitHub forks"></a>
-  <a href="https://github.com/XTH-LOVE/Love-/blob/HEAD/LICENSE"><img src="https://img.shields.io/github/license/XTH-LOVE/Love-?style=for-the-badge&color=7eb8e8" alt="MIT license"></a>
-  <a href="https://love-home.pages.dev/"><img src="https://img.shields.io/badge/Live%20Demo-love--home.pages.dev-f4a1c5?style=for-the-badge" alt="Live demo"></a>
-</p>
+## 架构与功能影响
 
-<p align="center">
-  <a href="#为什么做-love小家">为什么做</a> ·
-  <a href="#功能一览">功能一览</a> ·
-  <a href="#快速开始">快速开始</a> ·
-  <a href="#构建与发布">部署</a> ·
-  <a href="#参与贡献">参与贡献</a>
-</p>
+| 能力 | 实现 | 是否需要外部服务 | 未配置时的影响 |
+| --- | --- | --- | --- |
+| Web 与 API | 单个 Nuxt/Nitro 容器 | 否 | — |
+| 登录与会话 | 本地账号、加盐 scrypt 密码、HttpOnly Cookie | 否 | — |
+| 数据 | `/data/love.db`（SQLite WAL） | 否 | — |
+| 照片、视频、语音 | `/data/media` 私有目录 | 否 | — |
+| 实时消息与状态 | 同源 WebSocket | 否 | — |
+| 语音/视频通话 | WebRTC + 本地 coturn | 否 | 外网通话需要公网端口或可达的 TURN 地址 |
+| 心动 AI | 在线 OpenAI 兼容 API | 是，仅生成时 | 未配置时仅 AI 生成不可用，已保存内容不受影响 |
+| 地图与定位 | 高德 JS API + NAS 端安全代理 | 是，高德 | 仅地图选择/展示不可用 |
+| Android 后台推送 | FCM HTTP v1 | 是，FCM | App 关闭后的来电推送不可用；站内实时消息仍可用 |
 
-<p align="center">
-  <img src="public/login-couple.jpg" width="820" alt="Love小家登录页预览">
-</p>
+核心业务功能保持不变，但有三个明确边界：原云数据库中的历史数据不会自动迁移；WebRTC、定位和摄像头在普通浏览器中建议通过 HTTPS 使用；NAS 不可达时，双方设备不能同步本地数据。
 
-## 为什么做 Love小家
+## 快速部署
 
-很多情侣应用只提供一个聊天框，或者把纪念日、相册和日记拆散在不同产品里。Love小家想做的是一个更完整、更有温度的双人空间：
-
-- 不是公开社交网络，而是只属于同一情侣空间成员的私密房间。
-- 不是一次性发完就消失的聊天，而是可以回看的共同记忆库。
-- 不是冷冰冰的工具集合，而是有开屏、品牌、情绪化视觉和共同宠物的长期陪伴产品。
-- 不是只停留在网页的 Demo，而是同时面向 Web、Android 和 Windows 桌面端设计。
-
-Love小家使用淡紫、淡粉、白色和玻璃质感作为视觉基调，把“记录日常”做成一种轻松、浪漫、愿意每天打开的习惯。
-
-## English overview
-
-**Love小家 (CoupleSpace)** is a private, realtime space for two people. It combines shared memories, albums, private messages, anniversaries, AI-assisted writing, location sharing, realtime calls and a growing virtual pet system in one calm, romantic interface.
-
-It is built with Nuxt 4, Vue 3, TypeScript and Supabase, and can be shipped as a static web app, an Android application through Capacitor, or a Windows desktop app through Electron. The repository is intentionally self-hostable: authentication, database policies, storage, realtime channels and server-side secrets are documented so developers can build their own private couple space instead of relying on a public social network.
-
-The project is still evolving. Contributions are welcome, especially around accessibility, offline media, better pet interactions, testing and platform polish.
-
-## 功能一览
-
-### 首页：你们的共同入口
-
-- 实时显示在一起的天、时、分、秒。
-- 支持选择共同封面，并根据照片比例自动适配展示区域。
-- 最近共同回忆最多展示 10 项，支持照片和视频预览。
-- 今日情话轮播、共同计划、下一个纪念日和情书入口集中在首页。
-- 首页展示悄悄话未读角标和系统通知入口。
-- 支持开屏动画、一次性软件声明、版本更新提示和关于软件页面。
-
-### 时光轴：把故事写下来
-
-- 按日期记录文字、地点、照片和视频。
-- 支持编辑、删除和回看已经保存的共同回忆。
-- 每条内容显示记录日期、地点和上传成员。
-- 适合记录第一次旅行、生日、见面、纪念日和普通但值得记住的一天。
-
-### 相册：照片和视频分开管理
-
-- 创建多个相册，按相册、照片、视频和时光轴来源筛选。
-- 支持一次选择多张照片或多个视频上传。
-- 图片上传前进行客户端压缩，减少手机端等待时间。
-- 图片和视频支持预览、全屏查看、下载和删除。
-- 每项媒体显示拍摄日期和添加者。
-- 使用签名地址、浏览器缓存和分批加载，避免每次打开都重新等待全部媒体。
-
-### 悄悄话：双人实时消息
-
-- 文字消息、照片、短视频、语音和表情表达。
-- 消息按时间展示，并显示发送状态、已读状态和发送者头像。
-- 打开聊天后自动标记已读，自动滚动到最新消息。
-- Enter 快速发送，手机端使用全屏聊天布局。
-- 支持撤回自己发送的消息和媒体。
-- 支持发送当前位置、共享实时位置、真实地图查看、放大缩小和全屏地图。
-- 支持语音通话、视频通话以及无需接听即可收听的开麦模式。
-- 支持系统级通知、来电提示和网络重连。
-
-> 通话、系统通知、实时位置和地图需要浏览器/系统权限以及对应的 Supabase、ZEGO 或地图服务配置。未配置外部服务时，核心页面仍可启动并用于本地演示。
-
-### 纪念日：重要日子不再错过
-
-- 设置在一起的日期，并实时计算共同经历的时间。
-- 创建可重复的纪念日、旅行日、生日和自定义日期。
-- 显示下一个即将到来的特别日子和剩余天数。
-
-### 清单：一起完成的小事
-
-- 创建共同计划、备注、分类、优先级和计划日期。
-- 任意一方完成后，另一方可以实时看到状态变化。
-- 首页显示待完成事项和完成进度。
-
-### 心动 AI：让 AI 帮你写得更像你们
-
-- AI 约会策划：根据城市、预算和偏好生成约会方案。
-- AI 日记：根据当天真实素材生成可保存的共同日记。
-- AI 情书：选择收件人、字数和语气，生成后保存为长期作品。
-- 生成结果可以展开全文，切换页面后仍可从历史记录中打开。
-- 使用 Supabase Edge Function 代理小米 MiMo 请求，API Key 不放进前端。
-- 服务端包含请求长度限制、频率限制和错误提示，避免把 AI 生成变成不可控的黑盒。
-
-### 宠物小屋：一起养一只属于你们的宠物
-
-- 支持不同宠物种类、皮肤、配饰和 3D Fox 模型。
-- 宠物拥有喂养、互动、成长和进化机制。
-- 共同互动可以积累续火花天数。
-- 支持宠物小屋、家具扩展和专属动作的持续开发。
-
-## 视觉与交互
-
-- 桌面端：浮动玻璃侧边栏，适合宽屏持续使用。
-- 手机端：浮动底部导航，避开状态栏和系统导航区域。
-- 大圆角、半透明表面、淡紫淡粉渐变和柔和阴影。
-- 使用 Manrope 与 Nunito Sans，兼顾英文产品信息和中文界面阅读。
-- 使用 Lucide 图标，按钮保留清晰的图标、状态和无障碍标签。
-- 上传、加载、失败重试、空状态和移动端安全区均有独立处理。
-
-## 技术栈
-
-| 层级 | 技术 | 用途 |
-| --- | --- | --- |
-| Web 应用 | Nuxt 4、Vue 3、TypeScript | SSR、静态生成和组件化界面 |
-| 样式与交互 | CSS、玻璃质感设计、Lucide | 响应式布局、主题和图标系统 |
-| 用户与数据 | Supabase Auth、Postgres、RLS | 登录、情侣空间、数据隔离和权限控制 |
-| 实时能力 | Supabase Realtime | 消息、情书、宠物和共同数据同步 |
-| 私密媒体 | Supabase Storage | 照片、视频、语音和短期签名地址 |
-| 服务端能力 | Supabase Edge Functions | AI 请求代理、ZEGO Token、敏感逻辑隔离 |
-| AI | 小米 MiMo | 约会策划、共同日记和情书生成 |
-| 通话 | ZEGO Express | 音频通话、视频通话和开麦模式 |
-| 地图 | Leaflet / 高德地图配置 | 位置消息、实时位置和地图展示 |
-| 3D | Three.js、GLB 模型 | 宠物模型、动作和进化展示 |
-| 移动端 | Capacitor Android | Android APK 构建和系统能力接入 |
-| 桌面端 | Electron | Windows 桌面软件和自动加载线上版本 |
-
-## 项目结构
-
-```text
-CoupleSpace/
-├─ app/
-│  ├─ app.vue                 # 应用壳、导航、首页和全局状态
-│  ├─ components/             # 首页、相册、时光、聊天、AI、宠物等界面
-│  ├─ composables/            # Auth、Realtime、媒体缓存、通话和业务逻辑
-│  └─ plugins/supabase.ts     # Supabase 客户端初始化
-├─ public/
-│  ├─ couplespace-mark.svg    # 品牌图标
-│  ├─ login-couple.jpg        # 登录页视觉资源
-│  └─ models/Fox.glb          # 3D 宠物模型
-├─ supabase/
-│  ├─ migrations/             # 数据表、RLS、Realtime 和宠物系统迁移
-│  └─ functions/              # AI、ZEGO Token、账户相关 Edge Functions
-├─ android/                   # Capacitor Android 工程
-├─ desktop/                   # Electron Windows 桌面壳
-├─ infra/                     # 可选通话基础设施配置
-├─ capacitor.config.json
-├─ nuxt.config.ts
-└─ package.json
-```
-
-## 快速开始
-
-### 1. 克隆项目
+要求：支持 Docker Compose 的 x86-64 或 ARM64 NAS。环境变量获取、NAS 目录映射、FCM、coturn、HTTPS、升级备份与排障请查看 **[完整 Docker 部署指南](docs/docker-deployment.md)**。
 
 ```bash
-git clone https://github.com/XTH-LOVE/Love-.git
-cd Love-
-npm install
+git clone https://github.com/panda-995/Love-.git love-home
+cd love-home
+cp .env.example .env
+mkdir -p data
+sudo chown -R 1000:1000 data
+docker compose pull
+docker compose up -d app coturn
 ```
 
-Windows PowerShell：
+启动前至少应打开 `.env`，按需填写 AI 和高德配置；所有变量的含义与获取入口均在完整部署指南中逐项说明。
+
+打开 `http://NAS_IP:3000`，注册第一个本地账号并创建情侣空间；另一位用户注册自己的账号后，用邀请码加入即可。数据库表、TURN 密钥和媒体目录会在首次启动时自动创建，不需要手动执行 SQL。
+
+应用容器以非 root 的 UID/GID `1000:1000` 运行；如果 NAS 上的 `./data` 权限不同，请把该目录所有者调整为 `1000:1000`。查看状态：
+
+```bash
+docker compose ps
+docker compose logs -f app coturn
+```
+
+## 在线通用 AI API
+
+AI 仅通过服务端访问实现 OpenAI `POST /v1/chat/completions` 的在线服务。在 `.env` 配置：
+
+```dotenv
+AI_BASE_URL=https://你的接口地址/v1
+AI_API_KEY=你的密钥
+AI_MODEL=模型名
+```
+
+`AI_BASE_URL` 必须是 HTTPS 基础地址，不要填写完整的 `/chat/completions` 路径。修改后执行 `docker compose up -d app`。API Key 只保存在 NAS 服务端环境变量中，不会发到浏览器。未配置 AI 时，其余功能不受影响。
+
+`.env.example` 只保留以上三项 AI 配置和两项高德配置；端口、容器用户、版本号、FCM 路径与 TURN 常规配置均使用内置默认值或 `./data` 下的文件。
+
+## 高德地图
+
+在高德开放平台创建 Web 端 JS API Key，并把 Key 与安全密钥写入 `.env`：
+
+```dotenv
+AMAP_KEY=你的_Web_JS_API_Key
+AMAP_SECURITY_CODE=你的安全密钥_jscode
+```
+
+前端只收到 JS API Key；安全密钥由 `/_AMapService` 同源代理在服务端附加。部署 HTTPS 后，应在高德控制台填写实际域名白名单。
+
+## FCM 后台推送
+
+FCM 仅用于 Android App 在后台或被系统回收后的来电提醒，不参与账号登录和日常数据同步。
+
+1. 从 Firebase 项目下载服务账号 JSON，保存为 `./data/fcm-service-account.json`。
+2. 将 Android 客户端的 `google-services.json` 保存到 `android/app/google-services.json`。
+3. 重新构建 Android App，并让两位用户在系统设置中允许通知。
+
+服务账号文件和客户端配置都已加入 `.gitignore`，不要提交到仓库。未配置 FCM 时，打开网页/App 后的 WebSocket 实时提醒仍然工作。
+
+## coturn 与外网通话
+
+同一局域网中的通话通常不需要公网配置。跨网络通话时：
+
+1. 在路由器和 NAS 防火墙开放并转发 `3478/tcp`、`3478/udp`、`49160-49200/tcp` 和 `49160-49200/udp`。
+2. NAS 位于 NAT 后时，将公网 IPv4 写入本地文件：
+
+```bash
+printf '%s\n' '你的公网IPv4' > data/turn-external-ip
+```
+
+3. 默认使用浏览器访问 Love小家的主机名作为 TURN 地址。如果 TURN 使用不同域名，将逗号分隔的地址写入 `data/turn-urls`，例如 `turn:turn.example.com:3478?transport=udp,turn:turn.example.com:3478?transport=tcp`。
+
+长期共享密钥由应用自动生成在 `./data/turn-secret`。浏览器登录后只会得到短期 HMAC 凭据。
+
+## HTTPS 与反向代理
+
+本地账号和相册在 HTTP 下可以使用，但摄像头、麦克风、定位、Service Worker 等浏览器能力在非 localhost 环境通常要求安全上下文。正式部署建议使用 NAS 自带反向代理、Caddy、Nginx Proxy Manager 等提供 HTTPS，并确保代理：
+
+- 转发普通 HTTP 请求到 `app:3000`；
+- 支持 WebSocket Upgrade；
+- 传递 `Host`、`X-Forwarded-Host` 和 `X-Forwarded-Proto`；
+- 不缓存 `/api/`、`/_ws` 和 `/media/` 的私有响应。
+
+## Android 与桌面客户端
+
+Android 包需要在同步时指定 NAS 的可访问 HTTPS 地址，否则 APK 内没有本地 API：
+
+```bash
+LOVE_HOME_URL=https://love.example.com npm run android:sync
+cd android
+./gradlew assembleDebug
+```
+
+Windows Electron 客户端通过环境变量连接 NAS：
 
 ```powershell
-git clone https://github.com/XTH-LOVE/Love-.git
-Set-Location Love-
-npm install
-Copy-Item .env.example .env
+$env:LOVE_HOME_URL='https://love.example.com'
+npm run desktop:dev
 ```
 
-### 2. 配置环境变量
+## 数据目录与备份
 
-复制 `.env.example` 为 `.env`，至少配置：
+所有必须备份的运行数据都在一个目录中：
 
-```env
-NUXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NUXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```text
+data/
+├─ love.db
+├─ love.db-wal / love.db-shm   # 运行期间可能存在
+├─ media/                      # 私有照片、视频、语音和头像
+├─ turn-secret                 # coturn 共享密钥
+├─ turn-external-ip            # NAT 后可选
+├─ turn-urls                   # TURN 使用独立域名时可选
+└─ fcm-service-account.json    # 可选
 ```
 
-可选能力：
-
-- `NUXT_PUBLIC_AMAP_KEY`：高德地图 Web 端 Key。
-- `NUXT_PUBLIC_AMAP_SECURITY_CODE`：高德安全密钥。
-- `NUXT_PUBLIC_ZEGO_APP_ID`：ZEGO App ID。
-- `NUXT_PUBLIC_ZEGO_SERVER`：ZEGO WebSocket 服务地址。
-- `NUXT_PUBLIC_TURN_URLS`、`NUXT_PUBLIC_TURN_USERNAME`、`NUXT_PUBLIC_TURN_CREDENTIAL`：WebRTC 中继配置。
-
-### 3. 初始化 Supabase
-
-将 `supabase/migrations/` 中的迁移应用到自己的 Supabase 项目。使用 Supabase CLI 时可以：
+一致性备份建议先短暂停止写入，再复制整个目录：
 
 ```bash
-npx supabase login
-npx supabase link --project-ref your-project-ref
-npx supabase db push
+docker compose stop app coturn
+cp -a data "/你的备份目录/love-home-$(date +%F)"
+docker compose start app coturn
 ```
 
-再部署 Edge Functions：
+恢复时停止服务，用备份覆盖 `data` 并保持原来的文件所有者，然后重新启动。不要只复制正在写入的 `love.db` 而忽略 WAL 文件。
 
-```bash
-npx supabase functions deploy account-auth
-npx supabase functions deploy heart-ai
-npx supabase functions deploy zego-token
-```
+## 双架构镜像与自动构建
 
-Edge Function Secrets 应在 Supabase 控制台配置：
-
-- `MIMO_API_KEY`
-- `MIMO_BASE_URL`（可选）
-- `MIMO_MODEL`（默认使用项目配置的 MiMo 模型）
-- `ZEGO_SERVER_SECRET`
-
-这些值只应该存在于服务端 Secrets 中，不要写进 `.env`、README、前端代码或提交记录。
-
-### 4. 启动开发环境
-
-```bash
-npm run dev
-```
-
-默认开发地址通常是 `http://127.0.0.1:3200/`。如果 3200 端口已被占用，Nuxt 会选择其他端口。
-
-## 构建与发布
-
-### Docker Compose（AMD64 / ARM64）
-
-仓库会通过 GitHub Actions 自动构建并公开发布以下双架构镜像：
+公开镜像：
 
 - `ghcr.io/panda-995/love-app:latest`
 - `ghcr.io/panda-995/love-coturn:latest`
 
-复制环境变量示例并按需填写，然后启动服务：
+GitHub Actions 会在 `main` 分支和版本标签上通过 Buildx 构建并发布 `linux/amd64`、`linux/arm64` manifest；Pull Request 只构建验证，不推送。`compose.yaml` 已直接使用上述镜像。
+
+GHCR 包如果首次显示为 private，需要在仓库 Packages 页面把两个包的 visibility 设为 public；此操作只需做一次。
+
+## 本地开发与验证
+
+需要 Node.js 24：
 
 ```bash
-cp .env.example .env
-docker compose pull
-docker compose up -d
+npm ci
+npm run typecheck
+npm test
+npm run build
 ```
 
-Docker 会根据宿主机自动选择 `linux/amd64` 或 `linux/arm64`。coturn 用于公网中继时，还需要按 `infra/coturn/README.md` 修改配置、证书和防火墙。
+服务端使用 Node 内置 `node:sqlite`，因此不要用旧版 Node 启动生产服务。
 
-### Web 静态站点
+## 安全说明
 
-```bash
-npm run generate
-```
+- 本地密码使用随机盐和 scrypt 派生值保存，不存明文。
+- 登录会话使用 HttpOnly、SameSite Cookie；HTTPS 下自动设置 Secure。
+- 所有数据、媒体和 WebSocket 事件按情侣空间隔离；媒体路径、类型和大小由服务端验证。
+- AMap 安全密钥、AI Key、FCM 私钥和 TURN 共享密钥都不会进入前端包。
+- 请为 NAS 开启 HTTPS、定期备份 `data`，并只开放确实需要的端口。
 
-生成结果位于 `.output/public/`，可部署到 Cloudflare Pages、Netlify、Vercel 静态托管或任意静态服务器。
-
-### Android APK
-
-```bash
-npm run android:apk
-```
-
-该命令会先生成静态网页、同步 Capacitor 工程，再构建 Debug APK。正式发布前请在 Android Studio 中配置签名和 Release 构建。
-
-### Windows 桌面软件
-
-```bash
-npm run desktop:dev
-npm run desktop:exe
-```
-
-Electron 桌面壳默认加载线上 Web 版本，因此网页业务更新不一定需要重新制作 EXE。安装包输出到 `desktop-dist/`。
-
-### 版本更新
-
-版本号维护在 `package.json` 和 Nuxt runtime config 中。网页和桌面端使用在线更新清单，Android 通过 APK 下载入口提示用户安装新版本。完整流程见 [APP_UPDATE.md](APP_UPDATE.md)。
-
-## 安全与隐私设计
-
-Love小家处理的是情侣之间的照片、视频、消息和位置，因此安全边界不是附加功能，而是核心设计：
-
-- 每个用户属于一个情侣空间，业务查询以 `couple_id` 为边界。
-- Supabase Postgres 使用 RLS 限制同一情侣空间之外的访问。
-- 私密媒体使用 Storage 签名地址，不把公开永久文件 URL 作为主要访问方式。
-- 前端只使用 Supabase anon key；service role key、ZEGO ServerSecret、AI Key 只允许放在服务端。
-- AI 请求通过 Edge Function 转发，避免在浏览器暴露供应商密钥。
-- 账户设置中不会显示用户密码，只提供修改或重置能力。
-- 生产环境必须使用 HTTPS，并按实际部署域名配置认证回调地址。
-
-## 当前状态
-
-| 能力 | 状态 | 说明 |
-| --- | --- | --- |
-| Web 登录与情侣空间 | ✅ 可用 | 需要配置 Supabase Auth 和数据库 |
-| 首页、相册、时光、纪念日、清单 | ✅ 可用 | 支持真实数据和演示模式 |
-| 双人实时文字与媒体消息 | ✅ 可用 | 需要消息表、Storage 和 Realtime |
-| AI 约会、日记、情书 | ✅ 可用 | 需要部署 `heart-ai` 并配置 MiMo Secrets |
-| 真实地图与位置分享 | 🧪 配置后可用 | 需要地图 Key、域名白名单和定位权限 |
-| 音频/视频通话 | 🧪 配置后可用 | 需要 ZEGO ServerSecret、浏览器媒体权限 |
-| 3D 宠物与成长系统 | 🚧 持续完善 | 当前已接入模型、皮肤、配饰和互动基础 |
-| Android / Windows 发布 | ✅ 可构建 | 正式发布需要各平台签名和商店配置 |
-
-## 路线图
-
-- [ ] 更丰富的 3D 宠物模型、家具和动作系统。
-- [ ] 共同宠物的成长阶段、任务和奖励。
-- [ ] 更完整的系统级来电、通知和后台音频体验。
-- [ ] 媒体上传断点续传、离线队列和更智能的本地缓存。
-- [x] PWA 安装清单、Service Worker 离线应用壳和安装提示。
-- [ ] 桌面通知和跨设备同步优化。
-- [ ] 多语言界面与更完善的无障碍支持。
-- [ ] 面向贡献者的组件文档和端到端测试。
-
-## 贡献指南
-
-欢迎提交 Issue、改进建议、UI 方案和 Pull Request。
-
-1. Fork 本仓库并创建功能分支。
-2. 保持修改范围清晰，避免把真实密钥、个人照片或生产数据提交到仓库。
-3. 提交前运行：
-
-   ```bash
-   npx tsc --noEmit
-   npm run generate
-   git diff --check
-   ```
-
-4. 在 Pull Request 中说明：修改背景、实现方式、测试结果以及是否涉及数据库迁移。
-
-## 常见问题
-
-### 为什么登录后页面还是演示模式？
-
-检查 `.env` 中的 Supabase URL 和 anon key，确认当前部署环境也配置了相同变量，并重新生成或重新部署静态文件。
-
-### 为什么通话提示 Token 无效？
-
-ZEGO 的前端 App ID 不能替代 ServerSecret。请在 Supabase Edge Function Secrets 中配置真实 `ZEGO_SERVER_SECRET`，并确认 Edge Function 返回的 App ID 与前端一致。
-
-### 为什么照片加载失败或很慢？
-
-确认 Storage bucket、RLS、签名地址和部署域名配置正确。项目会使用签名地址、图片变换、浏览器 Cache Storage 和分批加载，但首次访问大视频仍然受网络和文件大小影响。
-
-### 能不能只使用网页，不构建 APK？
-
-可以。运行 `npm run generate` 后，把 `.output/public/` 部署到静态托管即可。Android 和 Windows 是额外的发布形态，不是 Web 使用的前置条件。
-
-## 开源协议
-
-本项目使用 [MIT License](LICENSE)。欢迎学习、修改和提交改进，也请在使用第三方服务时遵守对应服务条款和许可证。
-
-## 支持项目
-
-如果 Love小家对你有帮助，欢迎：
-
-- 点一个 Star，让更多人看到这个项目。
-- Fork 后做出你们自己的情侣空间主题。
-- 提交一个 Issue，告诉我你最想要的功能。
-- 分享给正在寻找私密共同空间的情侣或开发者。
-
-<p align="center">
-  <strong>愿每一段认真相爱的日常，都有一个值得回来的地方。</strong><br>
-  <a href="https://github.com/XTH-LOVE/Love-">访问 GitHub 项目</a> ·
-  <a href="https://love-home.pages.dev/">打开在线体验</a>
-</p>
+本项目基于 [XTH-LOVE/Love-](https://github.com/XTH-LOVE/Love-) 改造，保留原项目许可与署名。

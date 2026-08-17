@@ -27,7 +27,7 @@ export function usePushNotifications() {
       device_label: navigator.userAgent.slice(0, 120),
       last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'token' }).then(({ error }) => { if (error) console.warn('[push] token save failed', error.message) })
+    }, { onConflict: 'token' }).then(({ error }: { error: any }) => { if (error) console.warn('[push] token save failed', error.message) })
   }
 
   async function handleIncoming(data: Record<string, string>) {

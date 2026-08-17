@@ -619,7 +619,7 @@ button:focus-visible { outline: 3px solid rgba(168, 139, 216, 0.35); outline-off
 .hero-copy p { max-width: 390px; margin: 0 0 28px; color: #726b7b; font-size: 14px; line-height: 1.85; }
 .primary-button { display: flex; align-items: center; gap: 8px; min-height: 49px; padding: 0 22px; border: 1px solid rgba(255,255,255,.4); border-radius: 24px; background: linear-gradient(135deg,#8b4db9,#d85f99); color: white; font-size: 13px; font-weight: 800; box-shadow: 0 14px 30px rgba(131,63,157,.26); cursor: pointer; }
 .primary-button:hover { background: var(--lavender-deep); transform: translateY(-1px); }
-.hero-photo { position: relative; min-height: 350px; background: linear-gradient(90deg, #f4edf7 0%, transparent 30%), url('https://images.unsplash.com/photo-1501901609772-df0848060b33?auto=format&fit=crop&w=1200&q=84') center/cover; }
+.hero-photo { position: relative; min-height: 350px; background: linear-gradient(90deg, #f4edf7 0%, transparent 30%), url('/login-couple.jpg') center/cover; }
 .hero-photo.empty { background: linear-gradient(135deg, #e8dff3, #f6e5ec); }
 .photo-caption { position: absolute; right: 22px; bottom: 22px; display: flex; align-items: center; gap: 7px; padding: 10px 13px; border-radius: 14px; color: #57505f; font-size: 11px; font-weight: 700; }
 .cover-button { position:absolute;top:18px;right:18px;display:flex;align-items:center;gap:7px;padding:10px 13px;border:0;border-radius:18px;color:#674675;font-size:10px;font-weight:750;cursor:pointer; }
@@ -669,7 +669,7 @@ button:focus-visible { outline: 3px solid rgba(168, 139, 216, 0.35); outline-off
 .memory-panel { grid-column: 1 / -1; }
 .text-button { padding: 7px 0; border: 0; background: transparent; color: var(--lavender-deep); font-size: 11px; font-weight: 750; cursor: pointer; }
 .memory-content { display: grid; grid-template-columns: 190px 1fr; gap: 24px; align-items: center; margin-top: 20px; }
-.memory-photo { aspect-ratio: 16 / 9; border-radius: 18px; background: url('https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=800&q=82') center/cover; }
+.memory-photo { aspect-ratio: 16 / 9; border-radius: 18px; background: url('/login-couple.jpg') center/cover; }
 .memory-photo.empty { background: var(--lavender-soft); }
 .recent-media-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:18px}.recent-media-grid button{position:relative;overflow:hidden;aspect-ratio:16/9;padding:0;border:0;border-radius:16px;background:#eee5f1}.recent-media-grid img,.recent-media-grid video{display:block;width:100%;height:100%;object-fit:cover}.recent-media-grid span{position:absolute;right:7px;bottom:7px;left:7px;padding:6px 8px;border-radius:9px;background:rgba(41,31,46,.52);color:#fff;font-size:8px;text-align:left}
 .memory-copy > span { color: var(--pink); font-size: 10px; font-weight: 750; }
@@ -721,7 +721,7 @@ button:focus-visible { outline: 3px solid rgba(168, 139, 216, 0.35); outline-off
   .topbar h1 { font-size: 21px; }
   .message-button { width: 42px; height: 42px; border-radius: 15px; }
   .hero-section { display: flex; min-height: 610px; flex-direction: column-reverse; border-radius: 25px; }
-  .hero-photo { min-height: 190px; background-image: linear-gradient(0deg, #f4edf7 0%, transparent 38%), url('https://images.unsplash.com/photo-1501901609772-df0848060b33?auto=format&fit=crop&w=900&q=84'); }
+  .hero-photo { min-height: 190px; background-image: linear-gradient(0deg, #f4edf7 0%, transparent 38%), url('/login-couple.jpg'); }
   .photo-caption { right: 14px; bottom: 10px; }
   .hero-copy { padding: 28px 22px 30px; }
   .hero-copy::before { display:none; }

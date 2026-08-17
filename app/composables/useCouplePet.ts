@@ -62,10 +62,11 @@ export function useCouplePet() {
   const levelProgress = computed(() => pet.value ? Math.min(100, Math.round((pet.value.experience % 50) / 50 * 100)) : 0)
 
   async function subscribe() {
-    if (!$supabase || demoMode.value || realtimeChannel || !profile.value?.coupleId) return
-    realtimeChannel = $supabase.channel(`pet-streak:${profile.value.coupleId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'couple_pets', filter: `couple_id=eq.${profile.value.coupleId}` }, (payload: any) => { if (payload.new) pet.value = mapPet(payload.new) })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'couple_streaks', filter: `couple_id=eq.${profile.value.coupleId}` }, (payload: any) => {
+    const coupleId = profile.value?.coupleId
+    if (!$supabase || demoMode.value || realtimeChannel || !coupleId) return
+    realtimeChannel = $supabase.channel(`pet-streak:${coupleId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'couple_pets', filter: `couple_id=eq.${coupleId}` }, (payload: any) => { if (payload.new) pet.value = mapPet(payload.new) })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'couple_streaks', filter: `couple_id=eq.${coupleId}` }, (payload: any) => {
         if (!payload.new) return
         streak.value = mapStreak(payload.new)
         if (todayKey.value && payload.new.last_completed_date === todayKey.value) {
@@ -73,9 +74,9 @@ export function useCouplePet() {
           todayActionCount.value = Math.max(todayActionCount.value, 2)
         }
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'streak_day_actions', filter: `couple_id=eq.${profile.value.coupleId}` }, async (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'streak_day_actions', filter: `couple_id=eq.${coupleId}` }, async (payload: any) => {
         if (!todayKey.value || payload.new?.activity_date !== todayKey.value) return
-        const { data: rows, count } = await $supabase.from('streak_day_actions').select('user_id, activity_type, mood, note, created_at', { count: 'exact' }).eq('couple_id', profile.value.coupleId).eq('activity_date', todayKey.value)
+        const { data: rows, count } = await $supabase.from('streak_day_actions').select('user_id, activity_type, mood, note, created_at', { count: 'exact' }).eq('couple_id', coupleId).eq('activity_date', todayKey.value)
         todayActionCount.value = Number(count || 0)
         todayActorIds.value = (rows || []).map((row: any) => String(row.user_id))
         todayActions.value = mapActions(rows || [])

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ArrowLeft, Check, Flame, Gamepad2, Hand, Heart, LoaderCircle, PawPrint, Save, Sparkles, Utensils } from '@lucide/vue'
+import type { CouplePet } from '~/composables/useCouplePet'
+
+type Species = CouplePet['species']
 
 const { pet, streak, loading, busy, error, petRewards, moodLabel, hungerLabel, levelProgress, load, updateStyle, interact } = useCouplePet()
 const emit = defineEmits<{ back: [] }>()
 const selectedSkin = ref('lavender')
 const selectedAccessories = ref<string[]>([])
-const selectedSpecies = ref('bunny')
+const selectedSpecies = ref<Species>('bunny')
 const petAction = ref('')
 const savedNotice = ref(false)
 const skins = [
@@ -20,7 +23,7 @@ const accessories = [
   { id: 'bow', label: '蝴蝶结', art: '🎀' },
   { id: 'flower', label: '小花花', art: '🌼' },
 ]
-const speciesOptions = [
+const speciesOptions: Array<{ id: Species; label: string; art: string }> = [
   { id: 'bunny', label: '月兔', art: '🐰' },
   { id: 'cat', label: '云猫', art: '🐱' },
   { id: 'puppy', label: '奶油狗', art: '🐶' },

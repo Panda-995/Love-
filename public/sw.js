@@ -30,7 +30,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
 
-  // Supabase signed media already has its own bounded Cache Storage layer.
+  // Local authenticated media already has its own bounded Cache Storage layer.
   // Avoid duplicating private photos, videos, audio, or API responses here.
   if (request.destination === 'image' || request.destination === 'video' || request.destination === 'audio' || url.pathname.startsWith('/api/')) return
 

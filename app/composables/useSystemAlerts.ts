@@ -39,7 +39,7 @@ export async function notifySystem(title: string, body: string, id = 1001) {
     return true
   }
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false
-  const notification = new Notification(title, { body, tag: `love-home-${id}`, icon: '/favicon.ico', renotify: true })
+  const notification = new Notification(title, { body, tag: `love-home-${id}`, icon: '/favicon.ico' })
   notification.onclick = () => { window.focus(); notification.close() }
   return true
 }

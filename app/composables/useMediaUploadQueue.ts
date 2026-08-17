@@ -37,7 +37,7 @@ let uppy: Uppy | null = null
 function persist() {
   if (!import.meta.client) return
   try {
-    localStorage.setItem(queueStorageKey, JSON.stringify(jobs.value.filter(job => job.status !== 'completed').slice(-30)))
+    localStorage.setItem(uploadQueueStorageKey, JSON.stringify(jobs.value.filter(job => job.status !== 'completed').slice(-30)))
   } catch { /* best effort */ }
 }
 

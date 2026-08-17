@@ -58,7 +58,7 @@ function enter() {
           <div class="statement">
             <p><strong>开发者</strong>本软件由缐廷华开发与维护。</p>
             <p><strong>隐私边界</strong>情侣内容仅供同一双人空间成员访问，请妥善保管账户与邀请码。</p>
-            <p><strong>AI 辅助</strong>智能内容由小米 MiMo 辅助生成，仅作为创作建议，不代表开发者立场。</p>
+            <p><strong>AI 辅助</strong>智能内容由你配置的在线通用 AI API 生成，仅作为创作建议。</p>
             <p><strong>内容归属</strong>照片、视频、信件、日记及其他用户上传内容归用户本人所有。</p>
           </div>
           <button type="button" :disabled="seconds > 0" @click="enter">

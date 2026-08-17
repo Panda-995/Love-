@@ -14,8 +14,10 @@ on:
       - "nuxt.config.ts"
       - "tsconfig.json"
       - "app/**"
+      - "server/**"
       - "public/**"
       - "infra/coturn/Dockerfile"
+      - "infra/coturn/docker-entrypoint.sh"
   pull_request:
     branches: [main]
     paths:
@@ -28,8 +30,10 @@ on:
       - "nuxt.config.ts"
       - "tsconfig.json"
       - "app/**"
+      - "server/**"
       - "public/**"
       - "infra/coturn/Dockerfile"
+      - "infra/coturn/docker-entrypoint.sh"
   workflow_dispatch:
 
 permissions:

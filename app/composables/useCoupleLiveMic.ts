@@ -1,327 +1,128 @@
 import { notifySystem } from './useSystemAlerts'
 import { hideNativeCallOverlay, showNativeCallOverlay, startNativeCallService, stopNativeCallService } from './useAndroidCallControls'
-import { extractZegoErrorCode, validateZegoAuth, zegoErrorMessage } from '~/utils/zegoDiagnostics'
 
 export type LiveMicStatus = 'idle' | 'broadcasting' | 'listening'
-
 const liveStatus = ref<LiveMicStatus>('idle')
 const liveError = ref('')
 const liveMuted = ref(false)
 const liveRemoteMuted = ref(false)
 const liveRemoteName = ref('TA')
 const liveNeedsGesture = ref(false)
-
 let signalChannel: any = null
 let channelReady: Promise<void> | null = null
-let engine: any = null
-let roomId = ''
+let connection: RTCPeerConnection | null = null
 let localStream: MediaStream | null = null
-let localStreamId = ''
-let remoteStreamIds = new Set<string>()
-let remoteStreams = new Map<string, MediaStream>()
+let remoteStream: MediaStream | null = null
 let audioElement: HTMLAudioElement | null = null
+let sessionId = ''
+let remoteUserId = ''
+let pendingIce: RTCIceCandidateInit[] = []
 let ignoreCurrentLive = false
-let loginInFlight = false
 let startInFlight = false
 let listenInFlight = false
 
 function readableError(error: any, fallback: string) {
-  const code = extractZegoErrorCode(error)
-  const zegoMessage = zegoErrorMessage(code)
-  if (zegoMessage) return zegoMessage
-  const message = String(error?.message || error?.msg || '').toLowerCase()
-  if (code === 1102026 || message.includes('cancel login')) return 'ZEGO 登录被取消，上一条连接正在释放，请等待 1 秒后重试。'
-  if (typeof error === 'string' && error.trim()) return error
-  const detail = [error?.message, error?.msg, error?.errorMessage, error?.extendedData]
-    .find(value => typeof value === 'string' && value.trim())
-  return detail ? String(detail) : fallback
-}
-
-function coupleRoomId(coupleId: string) {
-  return `love-home-live-${coupleId}`.slice(0, 120)
+  const name = String(error?.name || '')
+  if (name === 'NotAllowedError') return '请允许浏览器使用麦克风后重试。'
+  if (name === 'NotFoundError') return '未找到可用的麦克风。'
+  if (name === 'NotReadableError') return '麦克风正被其他应用占用。'
+  return String(error?.message || fallback)
 }
 
 function getAudioElement() {
   if (!import.meta.client) return null
   if (audioElement) return audioElement
-  audioElement = document.createElement('audio')
-  audioElement.autoplay = true
-  audioElement.playsInline = true
-  audioElement.setAttribute('playsinline', '')
-  audioElement.setAttribute('aria-hidden', 'true')
-  audioElement.style.position = 'fixed'
-  audioElement.style.width = '1px'
-  audioElement.style.height = '1px'
-  audioElement.style.opacity = '0.01'
-  audioElement.style.pointerEvents = 'none'
-  document.body.appendChild(audioElement)
+  audioElement = document.createElement('audio'); audioElement.autoplay = true; audioElement.setAttribute('playsinline', ''); audioElement.setAttribute('aria-hidden', 'true'); audioElement.style.cssText = 'position:fixed;width:1px;height:1px;opacity:.01;pointer-events:none'; document.body.appendChild(audioElement)
   return audioElement
 }
 
 async function playAudio() {
   const audio = getAudioElement()
   if (!audio || !audio.srcObject) return false
-  try {
-    await audio.play()
-    liveNeedsGesture.value = false
-    return true
-  } catch {
-    liveNeedsGesture.value = true
-    return false
-  }
+  try { await audio.play(); liveNeedsGesture.value = false; return true } catch { liveNeedsGesture.value = true; return false }
 }
 
 export function useCoupleLiveMic() {
   const { $supabase } = useNuxtApp()
-  const config = useRuntimeConfig()
   const { profile, demoMode } = useCoupleAuth()
-
-  function currentRoom() {
-    return coupleRoomId(profile.value?.coupleId || 'demo')
-  }
 
   async function broadcast(event: string, payload: Record<string, unknown> = {}) {
     if (!signalChannel) throw new Error('开麦信令尚未连接')
-    const status = await signalChannel.send({
-      type: 'broadcast',
-      event,
-      payload: { ...payload, senderId: profile.value?.id },
-    })
-    if (status !== 'ok') throw new Error(`开麦信令发送失败（${status || 'unknown'}）`)
+    const status = await signalChannel.send({ type: 'broadcast', event, payload: { ...payload, senderId: profile.value?.id } })
+    if (status !== 'ok') throw new Error('开麦信令发送失败')
   }
 
-  async function getToken(targetRoom: string) {
-    if (!$supabase) throw new Error('Supabase 尚未配置')
-    const { data, error } = await $supabase.functions.invoke('zego-token', {
-      body: { roomId: targetRoom, userName: profile.value?.displayName || 'Love小家' },
-    })
-    if (error) {
-      let detail = error.message || 'ZEGO Token 获取失败'
-      const response = (error as any).context
-      if (response && typeof response.clone === 'function') {
-        try {
-          const body = await response.clone().json()
-          if (body?.error || body?.message) detail = String(body.error || body.message)
-          if (response.status) detail += `（HTTP ${response.status}）`
-        } catch { /* Keep the SDK error. */ }
-      }
-      throw new Error(detail)
+  async function createPeer(publish: boolean) {
+    cleanupPeer()
+    const rtc = await $fetch<{ iceServers: RTCIceServer[] }>('/api/rtc')
+    connection = new RTCPeerConnection({ iceServers: rtc.iceServers })
+    connection.onicecandidate = event => { if (event.candidate) void broadcast('live-ice', { sessionId, targetId: remoteUserId, candidate: event.candidate.toJSON() }).catch(() => undefined) }
+    connection.onconnectionstatechange = () => { if (['failed', 'disconnected'].includes(connection?.connectionState || '')) { liveError.value = '开麦连接已断开'; cleanupRoom() } }
+    connection.ontrack = event => {
+      remoteStream ||= new MediaStream(); for (const track of event.streams[0]?.getTracks() || [event.track]) if (!remoteStream.getTracks().some(item => item.id === track.id)) remoteStream.addTrack(track)
+      const audio = getAudioElement(); if (audio) { audio.srcObject = remoteStream; void playAudio() }
     }
-    if (data?.error) throw new Error(String(data.error))
-    return validateZegoAuth({ ...data, roomId: String(data?.roomId || targetRoom) }, Number(config.public.zegoAppId || 0))
+    if (publish) {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      for (const track of localStream.getTracks()) connection.addTrack(track, localStream)
+    } else connection.addTransceiver('audio', { direction: 'recvonly' })
   }
 
-  async function ensureEngine(appId: number) {
-    if (!import.meta.client) throw new Error('开麦功能只能在客户端使用')
-    if (engine) return
-    const { ZegoExpressEngine } = await import('zego-express-engine-webrtc')
-    engine = new ZegoExpressEngine(appId, String(config.public.zegoServer || 'wss://webliveroom-api.zego.im/ws'))
-    engine.on('roomStreamUpdate', async (streamRoom: string, updateType: string, streamList: Array<{ streamID: string }>) => {
-      if (streamRoom !== roomId || updateType !== 'ADD') return
-      for (const stream of streamList || []) {
-        if (!stream.streamID || stream.streamID === localStreamId || remoteStreamIds.has(stream.streamID)) continue
-        try {
-          const remote = await engine.startPlayingStream(stream.streamID)
-          remoteStreamIds.add(stream.streamID)
-          remoteStreams.set(stream.streamID, remote)
-          const audio = getAudioElement()
-          if (audio) {
-            audio.srcObject = remote
-            await playAudio()
-          }
-          if (liveStatus.value === 'listening') {
-            void notifySystem(`${liveRemoteName.value} 正在开麦`, liveRemoteMuted.value ? '对方暂时静音' : '已连接，可以直接听到声音', 2101)
-          }
-        } catch (error: any) {
-          liveError.value = readableError(error, '远端开麦音频播放失败')
-        }
-      }
-    })
-    engine.on('roomStateUpdate', (streamRoom: string, state: string, errorCode: number, extendedData: string) => {
-      if (streamRoom !== roomId || state !== 'DISCONNECTED') return
-      if (errorCode) liveError.value = extendedData ? `${extendedData}（错误码 ${errorCode}）` : `开麦房间已断开（错误码 ${errorCode}）`
-      // Do not call logoutRoom while loginRoom is still pending: ZEGO reports
-      // that sequence as the misleading 1102026 "cancel login" error.
-      if (loginInFlight) return
-      cleanupRoom()
-    })
-    engine.on('publisherStateUpdate', (result: any) => {
-      if (result?.streamID !== localStreamId || result?.state !== 'NO_PUBLISH' || !result?.errorCode) return
-      liveError.value = readableError(result, `开麦推流失败（${result.errorCode}）`)
-      cleanupRoom()
-    })
-  }
-
-  async function joinRoom(publish: boolean) {
-    const userId = String(profile.value?.id || '').trim()
-    if (!userId) throw new Error('当前账号身份尚未加载完成，请刷新页面后再试')
-    const targetRoom = currentRoom()
-    const auth = await getToken(targetRoom)
-    if (!Number.isFinite(auth.appId) || auth.appId <= 0) throw new Error('ZEGO AppID 无效')
-    await ensureEngine(auth.appId)
-    roomId = auth.roomId
-    const user = { userID: userId, userName: profile.value?.displayName || 'Love小家' }
-    loginInFlight = true
-    let loggedIn = false
-    try {
-      loggedIn = await engine.loginRoom(roomId, auth.token, user, { userUpdate: true })
-    } finally {
-      loginInFlight = false
-    }
-    if (!loggedIn) throw new Error('开麦房间登录失败，请检查 ZEGO Token')
-    if (!publish) {
-      liveStatus.value = 'listening'
-      await playAudio()
-      return
-    }
-    localStream = await engine.createStream({ camera: { audio: true, video: false } })
-    localStreamId = `live-audio-${userId}`
-    if (!engine.startPublishingStream(localStreamId, localStream)) throw new Error('开麦音频发布失败')
-    liveStatus.value = 'broadcasting'
+  async function applyPendingIce() {
+    if (!connection?.remoteDescription) return
+    for (const candidate of pendingIce.splice(0)) await connection.addIceCandidate(candidate).catch(() => undefined)
   }
 
   async function beginListening(payload: any) {
     if (ignoreCurrentLive || liveStatus.value !== 'idle' || listenInFlight) return
-    liveError.value = ''
-    liveRemoteName.value = String(payload?.userName || 'TA')
-    liveRemoteMuted.value = false
-    listenInFlight = true
-    try {
-      await ensureLiveChannel()
-      await joinRoom(false)
-      void notifySystem(`${liveRemoteName.value} 正在开麦`, '无需接听，已自动进入收听状态', 2100)
-    } catch (error: any) {
-      liveError.value = readableError(error, '无法加入对方的开麦')
-      cleanupRoom()
-    } finally {
-      listenInFlight = false
-    }
+    liveError.value = ''; liveRemoteName.value = String(payload?.userName || 'TA'); remoteUserId = String(payload?.senderId || ''); sessionId = String(payload?.sessionId || ''); listenInFlight = true
+    try { await ensureLiveChannel(); liveStatus.value = 'listening'; await broadcast('live-listen', { sessionId, targetId: remoteUserId }); void notifySystem(`${liveRemoteName.value} 正在开麦`, '正在建立本地音频连接', 2100) }
+    catch (error: any) { liveError.value = readableError(error, '无法加入对方的开麦'); cleanupRoom() }
+    finally { listenInFlight = false }
   }
 
   async function ensureLiveChannel() {
-    if (demoMode.value || !$supabase || !profile.value?.coupleId) return
+    if (demoMode.value || !profile.value?.coupleId) return
     if (channelReady) return channelReady
-    signalChannel = $supabase.channel(`zego-live:${profile.value.coupleId}`, { config: { broadcast: { self: false, ack: true } } })
-      .on('broadcast', { event: 'live-start' }, ({ payload }: any) => {
-        if (payload?.senderId === profile.value?.id) return
-        void beginListening(payload)
+    signalChannel = $supabase.channel(`webrtc-live:${profile.value.coupleId}`, { config: { broadcast: { self: false, ack: true } } })
+      .on('broadcast', { event: 'live-start' }, ({ payload }: any) => { if (payload?.senderId !== profile.value?.id) void beginListening(payload) })
+      .on('broadcast', { event: 'live-listen' }, async ({ payload }: any) => {
+        if (liveStatus.value !== 'broadcasting' || payload?.targetId !== profile.value?.id || payload?.sessionId !== sessionId) return
+        try { remoteUserId = String(payload.senderId || ''); await createPeer(true); const offer = await connection!.createOffer(); await connection!.setLocalDescription(offer); await broadcast('live-offer', { sessionId, targetId: remoteUserId, description: connection!.localDescription }) } catch (error: any) { liveError.value = readableError(error, '无法建立开麦连接') }
       })
-      .on('broadcast', { event: 'live-stop' }, ({ payload }: any) => {
-        if (payload?.senderId === profile.value?.id) return
-        ignoreCurrentLive = false
-        cleanupRoom()
+      .on('broadcast', { event: 'live-offer' }, async ({ payload }: any) => {
+        if (liveStatus.value !== 'listening' || payload?.targetId !== profile.value?.id || payload?.sessionId !== sessionId) return
+        try { remoteUserId = String(payload.senderId || ''); await createPeer(false); await connection!.setRemoteDescription(payload.description); await applyPendingIce(); const answer = await connection!.createAnswer(); await connection!.setLocalDescription(answer); await broadcast('live-answer', { sessionId, targetId: remoteUserId, description: connection!.localDescription }) } catch (error: any) { liveError.value = readableError(error, '无法接收开麦音频'); cleanupRoom() }
       })
-      .on('broadcast', { event: 'live-mute' }, ({ payload }: any) => {
-        if (payload?.senderId === profile.value?.id) return
-        liveRemoteMuted.value = Boolean(payload?.muted)
+      .on('broadcast', { event: 'live-answer' }, async ({ payload }: any) => { if (liveStatus.value === 'broadcasting' && payload?.targetId === profile.value?.id && payload?.sessionId === sessionId && connection) { await connection.setRemoteDescription(payload.description).catch(() => undefined); await applyPendingIce() } })
+      .on('broadcast', { event: 'live-ice' }, async ({ payload }: any) => {
+        if (payload?.targetId !== profile.value?.id || payload?.sessionId !== sessionId || !payload?.candidate) return
+        if (connection?.remoteDescription) await connection.addIceCandidate(payload.candidate).catch(() => undefined); else pendingIce.push(payload.candidate)
       })
-    channelReady = new Promise<void>((resolve, reject) => {
-      signalChannel.subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') resolve()
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') reject(new Error('开麦信令连接失败'))
-      })
-    }).catch(async error => {
-      const failedChannel = signalChannel
-      signalChannel = null
-      channelReady = null
-      if (failedChannel && $supabase) await $supabase.removeChannel(failedChannel)
-      throw error
-    })
+      .on('broadcast', { event: 'live-stop' }, ({ payload }: any) => { if (payload?.senderId !== profile.value?.id && payload?.sessionId === sessionId) { ignoreCurrentLive = false; cleanupRoom() } })
+      .on('broadcast', { event: 'live-mute' }, ({ payload }: any) => { if (payload?.senderId !== profile.value?.id && payload?.sessionId === sessionId) liveRemoteMuted.value = Boolean(payload?.muted) })
+    channelReady = new Promise<void>((resolve, reject) => signalChannel.subscribe((status: string) => { if (status === 'SUBSCRIBED') resolve(); if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) reject(new Error('开麦信令连接失败')) }))
+      .catch(async error => { const failed = signalChannel; signalChannel = null; channelReady = null; if (failed) await $supabase.removeChannel(failed); throw error })
     return channelReady
   }
 
   async function startLive() {
     if (liveStatus.value !== 'idle' || startInFlight) return
-    if (demoMode.value || !$supabase || !profile.value?.coupleId) {
-      liveError.value = '开麦需要登录并绑定情侣空间'
-      return
-    }
-    liveError.value = ''
-    ignoreCurrentLive = false
-    startInFlight = true
-    try {
-      await ensureLiveChannel()
-      await joinRoom(true)
-      void startNativeCallService('audio')
-      void showNativeCallOverlay('正在开麦，对方可直接收听')
-      await broadcast('live-start', { roomId, userName: profile.value?.displayName || 'TA' })
-      void notifySystem('已开始开麦', '对方无需接听即可收听', 2102)
-    } catch (error: any) {
-      liveError.value = readableError(error, '无法开始开麦')
-      cleanupRoom()
-    } finally {
-      startInFlight = false
-    }
+    if (demoMode.value || !profile.value?.coupleId) { liveError.value = '开麦需要登录并绑定情侣空间'; return }
+    liveError.value = ''; ignoreCurrentLive = false; startInFlight = true
+    try { await ensureLiveChannel(); sessionId = crypto.randomUUID(); liveStatus.value = 'broadcasting'; void startNativeCallService('audio'); void showNativeCallOverlay('正在开麦，对方可直接收听'); await broadcast('live-start', { sessionId, userName: profile.value?.displayName || 'TA' }); void notifySystem('已开始开麦', '对方上线后可直接收听', 2102) }
+    catch (error: any) { liveError.value = readableError(error, '无法开始开麦'); cleanupRoom() }
+    finally { startInFlight = false }
   }
 
-  async function stopLive() {
-    const shouldBroadcast = liveStatus.value === 'broadcasting'
-    if (shouldBroadcast && signalChannel) await broadcast('live-stop').catch(() => undefined)
-    ignoreCurrentLive = liveStatus.value === 'listening'
-    cleanupRoom()
-  }
+  async function stopLive() { const shouldBroadcast = liveStatus.value === 'broadcasting'; if (shouldBroadcast) await broadcast('live-stop', { sessionId }).catch(() => undefined); ignoreCurrentLive = liveStatus.value === 'listening'; cleanupRoom() }
+  function dismissLive() { if (liveStatus.value === 'listening') ignoreCurrentLive = true; cleanupRoom() }
+  function toggleLiveMute() { if (liveStatus.value !== 'broadcasting' || !localStream) return; liveMuted.value = !liveMuted.value; for (const track of localStream.getAudioTracks()) track.enabled = !liveMuted.value; void broadcast('live-mute', { sessionId, muted: liveMuted.value }).catch(() => undefined) }
+  async function resumeLiveAudio() { await playAudio() }
 
-  function dismissLive() {
-    if (liveStatus.value === 'listening') ignoreCurrentLive = true
-    cleanupRoom()
-  }
+  function cleanupPeer() { connection?.close(); connection = null; for (const track of localStream?.getTracks() || []) track.stop(); for (const track of remoteStream?.getTracks() || []) track.stop(); localStream = null; remoteStream = null; if (audioElement) { audioElement.pause(); audioElement.srcObject = null }; pendingIce = [] }
+  function cleanupRoom() { void stopNativeCallService(); void hideNativeCallOverlay(); cleanupPeer(); liveMuted.value = false; liveRemoteMuted.value = false; liveNeedsGesture.value = false; liveStatus.value = 'idle'; sessionId = ''; remoteUserId = '' }
+  async function disconnectLive() { cleanupRoom(); if (signalChannel) await $supabase.removeChannel(signalChannel); signalChannel = null; channelReady = null; ignoreCurrentLive = false; if (audioElement) { audioElement.remove(); audioElement = null }; startInFlight = false; listenInFlight = false }
 
-  function toggleLiveMute() {
-    if (liveStatus.value !== 'broadcasting' || !localStream || !engine) return
-    liveMuted.value = !liveMuted.value
-    engine.mutePublishStreamAudio(localStream, liveMuted.value)
-    void broadcast('live-mute', { muted: liveMuted.value }).catch(() => undefined)
-  }
-
-  async function resumeLiveAudio() {
-    await playAudio()
-  }
-
-  function cleanupRoom() {
-    void stopNativeCallService()
-    void hideNativeCallOverlay()
-    if (localStream && engine && localStreamId) engine.stopPublishingStream(localStreamId)
-    if (localStream && engine) engine.destroyStream(localStream)
-    if (roomId && engine) engine.logoutRoom(roomId)
-    remoteStreamIds.forEach(id => engine?.stopPlayingStream(id))
-    localStream = null
-    localStreamId = ''
-    roomId = ''
-    remoteStreamIds.clear()
-    remoteStreams.clear()
-    if (audioElement) { audioElement.pause(); audioElement.srcObject = null }
-    liveMuted.value = false
-    liveRemoteMuted.value = false
-    liveNeedsGesture.value = false
-    liveStatus.value = 'idle'
-  }
-
-  async function disconnectLive() {
-    cleanupRoom()
-    if (engine) { engine.destroyEngine(); engine = null }
-    if (signalChannel && $supabase) await $supabase.removeChannel(signalChannel)
-    signalChannel = null
-    channelReady = null
-    ignoreCurrentLive = false
-    if (audioElement) { audioElement.remove(); audioElement = null }
-    loginInFlight = false
-    startInFlight = false
-    listenInFlight = false
-  }
-
-  return {
-    liveStatus,
-    liveError,
-    liveMuted,
-    liveRemoteMuted,
-    liveRemoteName,
-    liveNeedsGesture,
-    ensureLiveChannel,
-    startLive,
-    stopLive,
-    dismissLive,
-    toggleLiveMute,
-    resumeLiveAudio,
-    disconnectLive,
-  }
+  return { liveStatus, liveError, liveMuted, liveRemoteMuted, liveRemoteName, liveNeedsGesture, ensureLiveChannel, startLive, stopLive, dismissLive, toggleLiveMute, resumeLiveAudio, disconnectLive }
 }

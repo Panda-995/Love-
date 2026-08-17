@@ -14,10 +14,10 @@ const failedJobs = computed(() => jobs.value.filter(job => job.status === 'faile
 const activeJobs = computed(() => jobs.value.filter(job => !['completed', 'failed'].includes(job.status)))
 const stateLabel: Record<string, string> = { checking: '检查中', ok: '正常', warning: '需处理', error: '异常', offline: '离线' }
 const serviceRows: Array<{ key: SpaceServiceKey; label: string; icon: any }> = [
-  { key: 'supabase', label: 'Supabase 数据库', icon: Database },
-  { key: 'media', label: '私有图片服务', icon: Image },
-  { key: 'push', label: '系统推送通知', icon: BellRing },
-  { key: 'call', label: '语音与视频通话', icon: PhoneCall },
+  { key: 'supabase', label: '本地 SQLite 数据库', icon: Database },
+  { key: 'media', label: 'NAS 媒体目录', icon: Image },
+  { key: 'push', label: 'FCM 后台推送', icon: BellRing },
+  { key: 'call', label: 'WebRTC 与 coturn', icon: PhoneCall },
 ]
 const syncLabel = computed(() => {
   if (!lastSyncAt.value) return '尚未同步'
