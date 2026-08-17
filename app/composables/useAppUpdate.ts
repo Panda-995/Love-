@@ -26,7 +26,7 @@ export function useAppUpdate() {
   const manifest = ref<AppUpdateManifest | null>(null)
   const checking = ref(false)
   const dismissedVersion = ref('')
-  const currentVersion = String(config.public.appVersion || '1.0.0')
+  const currentVersion = String(config.public.appVersion || '2.0.0')
   const updateUrl = String(config.public.updateManifestUrl || '')
   const available = computed(() => Boolean(manifest.value && isNewer(manifest.value.version, currentVersion) && dismissedVersion.value !== manifest.value.version))
   const isAndroid = computed(() => import.meta.client && /Android/i.test(navigator.userAgent))

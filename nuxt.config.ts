@@ -46,7 +46,7 @@ export default defineNuxtConfig({
     fcmServiceAccountFile: '/data/fcm-service-account.json',
     fcmServiceAccountJson: '',
     public: {
-      appVersion: '1.0.0',
+      appVersion: '2.0.0',
       updateManifestUrl: '/app-update.json',
     },
   },

@@ -1,4 +1,4 @@
-const VERSION = 'love-home-shell-v1'
+const VERSION = 'love-home-shell-v2'
 const CORE_ASSETS = [
   '/',
   '/manifest.webmanifest',

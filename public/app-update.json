@@ -1,9 +1,14 @@
 {
-  "version": "1.0.0",
-  "title": "Love小家",
-  "notes": [],
+  "version": "2.0.0",
+  "title": "Love小家 2.0",
+  "notes": [
+    "NAS 本地化架构：Web、API、SQLite、媒体与 WebSocket 一体部署。",
+    "支持自定义 OpenAI 兼容 API 地址、密钥和模型。",
+    "新增本地账号体系、双架构 Docker 镜像与 coturn 部署。",
+    "修复通讯 UUID 兼容、AI 方案保存和宠物小屋布局等问题。"
+  ],
   "apkUrl": "/downloads/Love小家-latest.apk",
   "webUrl": "/",
-  "publishedAt": "2026-07-14",
+  "publishedAt": "2026-08-17",
   "mandatory": false
 }
