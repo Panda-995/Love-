@@ -1,6 +1,6 @@
 services:
   coturn:
-    image: coturn/coturn:4.6.3
+    image: ghcr.io/panda-995/love-coturn:latest
     container_name: love-home-coturn
     restart: unless-stopped
     network_mode: host

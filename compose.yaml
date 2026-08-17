@@ -1,0 +1,32 @@
+name: love-home
+
+services:
+  app:
+    image: ghcr.io/panda-995/love-app:latest
+    container_name: love-home-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NUXT_PUBLIC_SUPABASE_URL: ${NUXT_PUBLIC_SUPABASE_URL:-}
+      NUXT_PUBLIC_SUPABASE_ANON_KEY: ${NUXT_PUBLIC_SUPABASE_ANON_KEY:-}
+      NUXT_PUBLIC_TURN_URLS: ${NUXT_PUBLIC_TURN_URLS:-}
+      NUXT_PUBLIC_TURN_USERNAME: ${NUXT_PUBLIC_TURN_USERNAME:-}
+      NUXT_PUBLIC_TURN_CREDENTIAL: ${NUXT_PUBLIC_TURN_CREDENTIAL:-}
+      NUXT_PUBLIC_ZEGO_APP_ID: ${NUXT_PUBLIC_ZEGO_APP_ID:-1962051148}
+      NUXT_PUBLIC_ZEGO_APPSIGN: ${NUXT_PUBLIC_ZEGO_APPSIGN:-}
+      NUXT_PUBLIC_ZEGO_SERVER: ${NUXT_PUBLIC_ZEGO_SERVER:-wss://webliveroom-api.zego.im/ws}
+      NUXT_PUBLIC_AMAP_KEY: ${NUXT_PUBLIC_AMAP_KEY:-}
+      NUXT_PUBLIC_AMAP_SECURITY_CODE: ${NUXT_PUBLIC_AMAP_SECURITY_CODE:-}
+      NUXT_PUBLIC_APP_VERSION: ${NUXT_PUBLIC_APP_VERSION:-1.0.0}
+      NUXT_PUBLIC_UPDATE_MANIFEST_URL: ${NUXT_PUBLIC_UPDATE_MANIFEST_URL:-https://love-home.pages.dev/app-update.json}
+
+  coturn:
+    image: ghcr.io/panda-995/love-coturn:latest
+    container_name: love-home-coturn
+    restart: unless-stopped
+    network_mode: host
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+    volumes:
+      - ./infra/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./infra/coturn/certs:/etc/coturn/certs:ro

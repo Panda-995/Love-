@@ -238,6 +238,23 @@ npm run dev
 
 ## 构建与发布
 
+### Docker Compose（AMD64 / ARM64）
+
+仓库会通过 GitHub Actions 自动构建并公开发布以下双架构镜像：
+
+- `ghcr.io/panda-995/love-app:latest`
+- `ghcr.io/panda-995/love-coturn:latest`
+
+复制环境变量示例并按需填写，然后启动服务：
+
+```bash
+cp .env.example .env
+docker compose pull
+docker compose up -d
+```
+
+Docker 会根据宿主机自动选择 `linux/amd64` 或 `linux/arm64`。coturn 用于公网中继时，还需要按 `infra/coturn/README.md` 修改配置、证书和防火墙。
+
 ### Web 静态站点
 
 ```bash

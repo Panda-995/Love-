@@ -1,0 +1,100 @@
+name: Build multi-architecture container images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - ".github/workflows/container-images.yml"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "compose.yaml"
+      - "package.json"
+      - "package-lock.json"
+      - "nuxt.config.ts"
+      - "tsconfig.json"
+      - "app/**"
+      - "public/**"
+      - "infra/coturn/Dockerfile"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/container-images.yml"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "compose.yaml"
+      - "package.json"
+      - "package-lock.json"
+      - "nuxt.config.ts"
+      - "tsconfig.json"
+      - "app/**"
+      - "public/**"
+      - "infra/coturn/Dockerfile"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: love-app
+            context: .
+            dockerfile: ./Dockerfile
+          - image: love-coturn
+            context: ./infra/coturn
+            dockerfile: ./infra/coturn/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=sha-
+
+      - name: Build and publish linux/amd64 and linux/arm64
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          provenance: mode=max
+          sbom: true
