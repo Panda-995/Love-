@@ -17,7 +17,6 @@ config_file=/tmp/turnserver.conf
 {
   echo "listening-port=3478"
   echo "fingerprint"
-  echo "lt-cred-mech"
   echo "use-auth-secret"
   printf 'static-auth-secret=%s\n' "$(cat "$secret_file")"
   echo "realm=love-home.local"
@@ -25,9 +24,10 @@ config_file=/tmp/turnserver.conf
   echo "min-port=49160"
   echo "max-port=49200"
   echo "no-cli"
+  echo "no-tls"
+  echo "no-dtls"
   echo "stale-nonce=600"
   echo "no-multicast-peers"
-  echo "no-loopback-peers"
   if [ -s "$external_ip_file" ]; then
     printf 'external-ip=%s\n' "$(tr -d '\r\n ' < "$external_ip_file")"
   fi

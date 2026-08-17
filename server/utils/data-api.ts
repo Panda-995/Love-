@@ -47,7 +47,7 @@ const tableColumns: Record<string, string[]> = {
 const jsonColumns = new Set(['memories.photos', 'couple_pets.accessories'])
 const booleanColumns = new Set(['anniversaries.recurring', 'together_items.completed'])
 const idTables = new Set(Object.entries(tableColumns).filter(([, columns]) => columns.includes('id')).map(([table]) => table))
-const directCoupleTables = new Set(['couples', 'couple_members', 'invitations', 'memories', 'albums', 'messages', 'couple_letters', 'anniversaries', 'together_items', 'ai_saved_works', 'couple_pets', 'couple_streaks', 'streak_day_actions', 'streak_activity_events', 'couple_streak_milestones', 'couple_pet_rewards', 'memory_favorites', 'memory_reactions', 'memory_comments', 'push_tokens', 'call_records'])
+const directCoupleTables = new Set(['couple_members', 'invitations', 'memories', 'albums', 'messages', 'couple_letters', 'anniversaries', 'together_items', 'ai_saved_works', 'couple_pets', 'couple_streaks', 'streak_day_actions', 'streak_activity_events', 'couple_streak_milestones', 'couple_pet_rewards', 'memory_favorites', 'memory_reactions', 'memory_comments', 'push_tokens', 'call_records'])
 const writableTables = new Set(['profiles', 'couples', 'memories', 'albums', 'album_photos', 'messages', 'couple_letters', 'anniversaries', 'together_items', 'ai_saved_works', 'memory_favorites', 'memory_reactions', 'memory_comments', 'push_tokens', 'call_records'])
 const insertableTables = new Set([...writableTables].filter(table => !['profiles', 'couples'].includes(table)))
 
@@ -65,6 +65,7 @@ function coupleScope(table: string, user: { id: string; coupleId: string | null 
     if (!user.coupleId) return { sql: 'id = ?', params: [user.id] as SQLInputValue[] }
     return { sql: 'id IN (SELECT user_id FROM couple_members WHERE couple_id = ?)', params: [user.coupleId] as SQLInputValue[] }
   }
+  if (table === 'couples') return { sql: 'id = ?', params: [user.coupleId || ''] as SQLInputValue[] }
   if (table === 'album_photos') return { sql: 'album_id IN (SELECT id FROM albums WHERE couple_id = ?)', params: [user.coupleId || ''] as SQLInputValue[] }
   if (directCoupleTables.has(table)) return { sql: 'couple_id = ?', params: [user.coupleId || ''] as SQLInputValue[] }
   return { sql: '1 = 0', params: [] as SQLInputValue[] }

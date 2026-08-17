@@ -168,6 +168,8 @@ docker compose restart app coturn
 
 `data/turn-secret` 由 app 首次启动自动生成，禁止手动复制到 `.env` 或浏览器。coturn 使用它签发短期凭据。
 
+内置 coturn 使用 `turn:` 的 3478/TCP 与 3478/UDP，并关闭没有证书配置的 TURN TLS/DTLS 监听。浏览器中的 WebRTC 媒体仍会进行端到端加密；如需 `turns:`，需要自行准备证书并扩展镜像配置。
+
 ## 6. 启动服务
 
 先检查 Compose 展开结果，再拉取公开双架构镜像：
